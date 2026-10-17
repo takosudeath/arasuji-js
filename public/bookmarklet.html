@@ -1,0 +1,99 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>arasuji.js ブックマークレット</title>
+  <style>
+    * { box-sizing: border-box; }
+    body {
+      max-width: 760px;
+      margin: 0 auto;
+      padding: 2em 1em 4em;
+      color: #222;
+      font-family: system-ui, -apple-system, "Hiragino Sans", "Noto Sans JP", sans-serif;
+      line-height: 1.75;
+    }
+    .bookmarklet {
+      display: inline-block;
+      padding: .6em 1.2em;
+      border-radius: 8px;
+      background: #2a7ab0;
+      color: #fff;
+      font-weight: bold;
+      text-decoration: none;
+    }
+    .bookmarklet:focus-visible { outline: 3px solid #2a7ab0; outline-offset: 3px; }
+    textarea {
+      width: 100%;
+      min-height: 7em;
+      padding: .5em;
+      font-family: ui-monospace, Menlo, Consolas, monospace;
+      font-size: .85em;
+    }
+    code { padding: .1em .3em; border-radius: 3px; background: #f0f2f4; }
+    table { border-collapse: collapse; }
+    th, td { padding: .4em .8em; border: 1px solid #ddd; text-align: left; vertical-align: top; }
+  </style>
+</head>
+<body>
+  <p><a href="./index.html">デモ一覧へ</a></p>
+  <h1>ブックマークレット</h1>
+  <p>サイトが arasuji.js に対応していなくても、ブックマークから「前回のあらすじ」を使えます。進捗はそのサイトごとに、このブラウザの中に保存されます。</p>
+
+  <h2>登録のしかた</h2>
+  <p>次のリンクをブックマークバーへドラッグします。</p>
+  <p><a class="bookmarklet" id="bookmarklet" href="#">あらすじ</a></p>
+  <p>ドラッグできないときは、適当なページをブックマークしてから、その URL を次の文字列に書き換えます。</p>
+  <label for="code">ブックマークの URL</label>
+  <textarea id="code" readonly></textarea>
+
+  <h2>使い方</h2>
+  <ol>
+    <li>長文のページを開いて、ブックマークの「あらすじ」を押す</li>
+    <li>ページの h1 の下に「前回のあらすじ」欄が入り、各節の末尾に「次の節へ」ボタンが入る</li>
+    <li>もう一度押すと、あらすじを読み上げる</li>
+  </ol>
+  <p>ページを再読み込みしたり、別のページへ移ったりしたときは、もう一度押してください。教材が iframe の中にあるサイトでは、次の教材へ移ったときももう一度押してください。</p>
+
+  <h2>設定済みのサイト</h2>
+  <p>次のサイトでは、本文の範囲と節の見出しを合わせてあります。ほかのサイトでは <code>main</code> の中の <code>h2</code> を節として扱います。</p>
+  <table>
+    <thead><tr><th>サイト</th><th>URL</th></tr></thead>
+    <tbody id="sites"></tbody>
+  </table>
+
+  <h2>使えないサイト</h2>
+  <ul>
+    <li>Content Security Policy で外部の script を止めているサイト（「読み込めませんでした」と出る）</li>
+    <li>本文が <code>main</code> の中になく、<code>h2</code> で節を分けていないサイト（「見出しが見つかりませんでした」と出る）</li>
+    <li>ページ移動で本文だけを JavaScript で入れ替えるサイト（2ページ目以降で節が合わない）</li>
+  </ul>
+  <p>要約データはないので、あらすじは「どこまで・続き・残り」だけになり、要点は入りません。</p>
+
+  <script src="./sites.js"></script>
+  <script>
+    // このページと同じ場所にある bookmarklet.js を読み込むブックマークレットを作る
+    const src = new URL('./bookmarklet.js', location.href).href;
+    const code = `javascript:(()=>{const s=document.createElement('script');s.src=${JSON.stringify(src)}+'?t='+Date.now();document.body.appendChild(s);})();`;
+    document.getElementById('bookmarklet').href = code;
+    document.getElementById('code').value = code;
+    // ブックマークレットはこのページで押しても意味がないので、クリックだけ止める（ドラッグはできる）
+    document.getElementById('bookmarklet').addEventListener('click', e => {
+      e.preventDefault();
+      alert('このリンクはブックマークバーへドラッグして登録してください。');
+    });
+
+    const tbody = document.getElementById('sites');
+    for (const site of window.ARASUJI_SITES.list.filter(s => !s.skip)) {
+      const tr = document.createElement('tr');
+      const name = document.createElement('td');
+      name.textContent = site.name;
+      const url = document.createElement('td');
+      url.textContent = site.match;
+      tr.append(name, url);
+      tbody.append(tr);
+    }
+  </script>
+</body>
+</html>

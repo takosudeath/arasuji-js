@@ -1,0 +1,13 @@
+{
+  "name": "arasuji",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "serve public -l 8787",
+    "generate": "node scripts/generate.mjs",
+    "generate:dry": "node scripts/generate.mjs --no-ai",
+    "extension": "node scripts/check-presets.mjs && node scripts/copy-extension.mjs",
+    "check": "node scripts/check-presets.mjs"
+  },
+  "devDependencies": { "serve": "^14" }
+}

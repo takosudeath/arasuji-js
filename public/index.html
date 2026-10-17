@@ -1,0 +1,79 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>arasuji.js デモ</title>
+  <style>
+    * { box-sizing: border-box; }
+    body {
+      max-width: 760px;
+      margin: 0 auto;
+      padding: 2em 1em 4em;
+      color: #222;
+      font-family: system-ui, -apple-system, "Hiragino Sans", "Noto Sans JP", sans-serif;
+      line-height: 1.75;
+    }
+    h1 { margin-bottom: .25em; }
+    .lead { margin-top: 0; color: #555; }
+    .demo { margin: 1.5em 0; padding: 1em 1.25em; border: 1px solid #ddd; border-radius: 8px; }
+    .demo h2 { margin: 0 0 .25em; font-size: 1.2em; }
+    .demo p { margin: 0 0 .75em; color: #555; }
+    .demo ul { display: flex; flex-wrap: wrap; gap: .5em; margin: 0; padding: 0; list-style: none; }
+    .demo a {
+      display: inline-block;
+      padding: .35em .8em;
+      border: 1px solid #2a7ab0;
+      border-radius: 6px;
+      color: #2a7ab0;
+      text-decoration: none;
+    }
+    .demo a.main { background: #2a7ab0; color: #fff; }
+    code { padding: .1em .3em; border-radius: 3px; background: #f0f2f4; }
+  </style>
+</head>
+<body>
+  <h1>arasuji.js デモ</h1>
+  <p class="lead">中断した長文ページを再開するときに、「前回のあらすじ」を音声で聞けるようにするライブラリのデモです。</p>
+
+  <section class="demo">
+    <h2>教材風：Python入門：関数</h2>
+    <p><code>data-preset="lesson"</code>。節が <code>&lt;section&gt;</code> で囲まれていない平らな構造。ショートカット（Alt+Shift+R/J/O）が有効。</p>
+    <ul>
+      <li><a class="main" href="./lesson/py-func.html">開く</a></li>
+      <li><a href="./lesson/py-func?demo=3days">2節まで読んで3日後</a></li>
+      <li><a href="./lesson/py-func?demo=today">2節まで読んだ今日</a></li>
+      <li><a href="./lesson/py-func?demo=reset">進捗を消して開く</a></li>
+    </ul>
+  </section>
+
+  <section class="demo">
+    <h2>ドキュメント風：はじめに</h2>
+    <p><code>&lt;main&gt;</code> と <code>&lt;section&gt;</code> で組んだ別構造のページ。script 2行だけで動く。ショートカットは既定のオフ。</p>
+    <ul>
+      <li><a class="main" href="./docs/getting-started.html">開く</a></li>
+      <li><a href="./docs/getting-started?demo=3days">2節まで読んで3日後</a></li>
+      <li><a href="./docs/getting-started?demo=today">2節まで読んだ今日</a></li>
+      <li><a href="./docs/getting-started?demo=reset">進捗を消して開く</a></li>
+    </ul>
+  </section>
+
+  <section class="demo">
+    <h2>ブックマークレット</h2>
+    <p>arasuji.js に対応していないサイトでも、ブックマークから使えます。</p>
+    <ul>
+      <li><a class="main" href="./bookmarklet.html">登録のしかた</a></li>
+    </ul>
+  </section>
+
+  <section class="demo">
+    <h2>自前 UI：はじめに</h2>
+    <p><code>data-ui="off"</code> にして、公開 API とイベントだけで作った操作バー。見た目は自由、読み上げは同じ。</p>
+    <ul>
+      <li><a class="main" href="./custom/index.html">開く</a></li>
+      <li><a href="./custom/?demo=3days">2節まで読んで3日後</a></li>
+      <li><a href="./custom/?demo=reset">進捗を消して開く</a></li>
+    </ul>
+  </section>
+</body>
+</html>

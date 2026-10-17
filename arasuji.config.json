@@ -1,0 +1,18 @@
+{
+  "model": "@cf/meta/llama-3.3-70b-instruct-fp8-fast",
+  "sites": [
+    {
+      "input": "public/lesson",
+      "output": "public/lesson/arasuji-data.js",
+      "container": ".markdown-section",
+      "heading": "h2",
+      "end": ".share-button-wrapper"
+    },
+    {
+      "input": "public/docs",
+      "output": "public/docs/arasuji-data.js",
+      "container": "main",
+      "heading": "h2"
+    }
+  ]
+}

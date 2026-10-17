@@ -1,0 +1,89 @@
+:root {
+  --material-color-main: #1f6fa8;
+}
+
+* { box-sizing: border-box; }
+
+body {
+  margin: 0;
+  background: #f5f5f5;
+  color: #333;
+  font-family: "Hiragino Kaku Gothic ProN", "Hiragino Sans", Meiryo, sans-serif;
+  font-size: 16px;
+  line-height: 1.8;
+}
+
+.book-header {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  display: flex;
+  align-items: center;
+  gap: 1em;
+  padding: .5em 1em;
+  background: var(--material-color-main);
+  color: #fff;
+}
+.book-header a { color: #fff; font-size: .9em; white-space: nowrap; }
+.book-header h1 {
+  margin: 0;
+  overflow: hidden;
+  font-size: 1em;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.page-wrapper { padding: 1.5em 1em 4em; outline: none; }
+
+.markdown-section {
+  max-width: 800px;
+  margin: 0 auto;
+  padding: 1.5em 2em 2em;
+  background: #fff;
+  border-radius: 4px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, .12);
+}
+.markdown-section h1 { font-size: 1.8em; line-height: 1.4; }
+.markdown-section h2 {
+  margin-top: 2em;
+  padding-bottom: .3em;
+  border-bottom: 2px solid var(--material-color-main);
+  font-size: 1.4em;
+}
+.markdown-section h3 { margin-top: 1.5em; font-size: 1.15em; }
+.markdown-section pre {
+  overflow-x: auto;
+  padding: 1em;
+  background: #263238;
+  border-radius: 4px;
+  color: #eceff1;
+  line-height: 1.5;
+}
+.markdown-section code { font-family: Menlo, Consolas, monospace; font-size: .9em; }
+.markdown-section p code, .markdown-section li code {
+  padding: .1em .3em;
+  background: #eef2f5;
+  border-radius: 3px;
+}
+.markdown-section img { max-width: 100%; height: auto; }
+.markdown-section .note {
+  padding: .75em 1em;
+  background: #fff8e1;
+  border-left: 4px solid #f9a825;
+}
+
+#toc { padding: .75em 1em .75em 2em; background: #f7f9fb; border-radius: 4px; }
+
+.share-button-wrapper {
+  margin-top: 3em;
+  padding: 1.5em;
+  background: #f0f6fb;
+  border-radius: 4px;
+  text-align: center;
+}
+.share-button-wrapper .ending-h2 { margin: 0 0 .5em; border: 0; }
+
+@media (max-width: 600px) {
+  .page-wrapper { padding: .75em .5em 3em; }
+  .markdown-section { padding: 1em; }
+}

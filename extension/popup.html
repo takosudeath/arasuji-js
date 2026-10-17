@@ -1,0 +1,62 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8">
+  <title>arasuji</title>
+  <style>
+    body {
+      width: 320px;
+      margin: 0;
+      padding: 12px 14px 14px;
+      color: #222;
+      font: 14px/1.6 system-ui, -apple-system, "Hiragino Sans", "Noto Sans JP", sans-serif;
+    }
+    h1 { margin: 0 0 4px; font-size: 16px; }
+    .site { margin: 0 0 10px; color: #555; font-size: 12px; overflow-wrap: anywhere; }
+    button {
+      width: 100%;
+      min-height: 40px;
+      border: 2px solid #2a7ab0;
+      border-radius: 6px;
+      background: #2a7ab0;
+      color: #fff;
+      font: inherit;
+      font-weight: bold;
+      cursor: pointer;
+    }
+    button:focus-visible, input:focus-visible, summary:focus-visible { outline: 3px solid #2a7ab0; outline-offset: 2px; }
+    button.secondary { background: #fff; color: #2a7ab0; }
+    #status { min-height: 1.6em; margin: 8px 0; }
+    #status.error { color: #b3261e; }
+    label { display: flex; gap: 6px; align-items: flex-start; margin: 8px 0; }
+    label input[type="checkbox"] { margin-top: 4px; }
+    details { margin-top: 10px; padding-top: 8px; border-top: 1px solid #ddd; }
+    summary { cursor: pointer; }
+    .field { display: block; margin: 8px 0; }
+    .field span { display: block; font-size: 12px; color: #555; }
+    .field input { width: 100%; box-sizing: border-box; padding: 4px 6px; font: 13px ui-monospace, Menlo, monospace; }
+    .note { margin: 4px 0 8px; color: #555; font-size: 12px; }
+  </style>
+</head>
+<body>
+  <h1>arasuji</h1>
+  <p class="site" id="site"></p>
+  <button type="button" id="run">このページで使う</button>
+  <p id="status" role="status"></p>
+
+  <label><input type="checkbox" id="auto"> <span>このサイトでは開いたときに自動で使う</span></label>
+  <label><input type="checkbox" id="shortcuts"> <span>Alt+Shift+R/J/O のショートカットを使う（すべてのサイト）</span></label>
+
+  <details id="advanced">
+    <summary>このサイトの設定</summary>
+    <p class="note">空欄なら、設定済みのサイトはその値、それ以外は自動で決めます。本文が iframe の中にあるサイトでも、ここで決めた値で本文のある iframe を探します。保存したら、ページを再読み込みしてから使ってください。</p>
+    <label class="field"><span>本文のコンテナ（例：main、.content）</span><input id="container" spellcheck="false"></label>
+    <label class="field"><span>節の見出し（例：h2、:scope &gt; h2）</span><input id="heading" spellcheck="false"></label>
+    <label class="field"><span>本文の終わりの目印（任意）</span><input id="end" spellcheck="false"></label>
+    <button type="button" class="secondary" id="save">保存</button>
+  </details>
+
+  <script src="sites.js"></script>
+  <script src="popup.js"></script>
+</body>
+</html>

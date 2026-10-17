@@ -1,0 +1,6 @@
+node_modules/
+.DS_Store
+.playwright-mcp/
+# pnpm extension で public/ から写すもの
+extension/arasuji.js
+extension/sites.js

@@ -1,0 +1,170 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>はじめに（自前 UI）| Tsumugi ドキュメント</title>
+  <link rel="stylesheet" href="../docs/style.css">
+  <style>
+    body { padding-bottom: 6em; }
+    .bar {
+      position: fixed;
+      right: 0;
+      bottom: 0;
+      left: 0;
+      z-index: 10;
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: .5em;
+      padding: .6em 1em;
+      background: #111;
+      color: #fff;
+      font-size: .95em;
+      box-shadow: 0 -2px 12px rgba(0, 0, 0, .3);
+    }
+    .bar[hidden] { display: none; }
+    .bar button {
+      min-height: 44px;
+      padding: .4em .9em;
+      border: 0;
+      border-radius: 999px;
+      background: #2d2d2d;
+      color: #fff;
+      font: inherit;
+      cursor: pointer;
+    }
+    .bar button:hover { background: #3d3d3d; }
+    .bar button:focus-visible { outline: 3px solid #ffd33d; outline-offset: 2px; }
+    .bar button[aria-disabled="true"] { opacity: .5; cursor: default; }
+    .bar .primary { background: #ffd33d; color: #111; font-weight: bold; }
+    .bar .primary:hover { background: #ffe066; }
+    .bar .position {
+      min-width: 4.5em;
+      padding: .25em .75em;
+      border: 1px solid #555;
+      border-radius: 999px;
+      font-variant-numeric: tabular-nums;
+      text-align: center;
+    }
+    .bar .caption {
+      flex: 1 1 16em;
+      overflow: hidden;
+      color: #bbb;
+      font-size: .85em;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+  </style>
+</head>
+<body>
+<header>
+  <a class="site-name" href="./index.html">Tsumugi ドキュメント</a>
+  <a href="../index.html">デモ一覧へ</a>
+</header>
+<nav aria-label="ドキュメント">
+  <p>ガイド</p>
+  <ul>
+    <li><a href="./index.html" aria-current="page">はじめに</a></li>
+    <li><a href="#">テンプレート</a></li>
+    <li><a href="#">プラグイン</a></li>
+    <li><a href="#">公開する</a></li>
+  </ul>
+</nav>
+<main>
+  <h1>はじめに</h1>
+  <p>Tsumugi は、Markdown のファイルから静的なウェブサイトを作る架空のツールです。このページでは、インストールからサイトを書き出すまでの流れを説明します。</p>
+
+  <section>
+    <h2>インストール</h2>
+    <p>Tsumugi は Node.js の上で動きます。先に Node.js の 20 以降を入れておいてください。</p>
+    <p>プロジェクトを作るフォルダで、次のコマンドを実行します。</p>
+    <pre><code>npm create tsumugi@latest my-site
+cd my-site
+npm install</code></pre>
+    <p><code>my-site</code> フォルダの中に、設定ファイル <code>tsumugi.config.js</code> と、記事を置く <code>pages</code> フォルダが作られます。</p>
+  </section>
+
+  <section>
+    <h2>設定</h2>
+    <p>サイト全体の設定は <code>tsumugi.config.js</code> に書きます。最低限必要なのは、サイトの名前と書き出し先です。</p>
+    <pre><code>export default {
+  title: "わたしのノート",
+  outDir: "dist",
+  lang: "ja",
+};</code></pre>
+    <h3>よく使う項目</h3>
+    <table>
+      <thead><tr><th>項目</th><th>意味</th></tr></thead>
+      <tbody>
+        <tr><td><code>title</code></td><td>サイトの名前。各ページの title にも付く</td></tr>
+        <tr><td><code>outDir</code></td><td>書き出したファイルを置くフォルダ</td></tr>
+        <tr><td><code>lang</code></td><td>html 要素の lang 属性に入れる言語</td></tr>
+      </tbody>
+    </table>
+    <p><code>lang</code> を正しく指定しておくと、スクリーンリーダーが正しい言語で読み上げます。</p>
+  </section>
+
+  <section>
+    <h2>使い方</h2>
+    <p><code>pages</code> フォルダに Markdown のファイルを置くと、ファイル名がそのまま URL になります。たとえば <code>pages/about.md</code> は <code>/about</code> で開けます。</p>
+    <p>書きながら確認するときは、開発用サーバーを起動します。ファイルを保存するたびに、ブラウザの表示が自動で更新されます。</p>
+    <pre><code>npm run dev</code></pre>
+  </section>
+
+  <section>
+    <h2>書き出す</h2>
+    <p>公開用のファイルを作るには <code>build</code> を実行します。<code>outDir</code> で指定したフォルダに HTML と CSS が書き出されます。</p>
+    <pre><code>npm run build</code></pre>
+    <p>書き出したフォルダは、そのまま静的ファイルのホスティングサービスに置けます。サーバー側でプログラムを動かす必要はありません。</p>
+  </section>
+</main>
+
+<div class="bar" role="region" aria-label="読書の操作" hidden>
+  <span class="position" id="position" aria-live="off"></span>
+  <button type="button" id="recap">あらすじ</button>
+  <button type="button" id="resume" class="primary">続きへ</button>
+  <button type="button" id="overview">全体像</button>
+  <button type="button" id="mark">この節を読んだ</button>
+  <span class="caption" id="caption" aria-hidden="true"></span>
+</div>
+
+<script>
+  // arasuji.js（defer）より先にリスナーを登録しておく
+  document.addEventListener('arasuji:ready', e => {
+    const bar = document.querySelector('.bar');
+    const position = document.getElementById('position');
+    const caption = document.getElementById('caption');
+
+    function render(state) {
+      const total = state.sections.length;
+      const current = state.next || total;
+      position.textContent = `${state.last}／${total}節`;
+      position.title = state.next ? `次は「${state.sections[current - 1].heading}」` : '読了';
+      // disabled にすると押した直後にフォーカスが body へ落ちるので aria-disabled にする
+      document.getElementById('mark').setAttribute('aria-disabled', String(!state.next));
+    }
+
+    render(e.detail);
+    bar.hidden = false;
+
+    document.getElementById('recap').onclick = () => Arasuji.recap();
+    document.getElementById('resume').onclick = () => Arasuji.resume();
+    document.getElementById('overview').onclick = () => Arasuji.overview();
+    document.getElementById('mark').onclick = () => {
+      const { next } = Arasuji.getState();
+      if (!next) return Arasuji.announce('このページは最後まで読み終えています。');
+      Arasuji.markRead(next);
+      if (Arasuji.getState().next) Arasuji.resume();
+      else Arasuji.announce('このページを読み終えました。');
+    };
+
+    document.addEventListener('arasuji:change', e => render(e.detail));
+    document.addEventListener('arasuji:announce', e => { caption.textContent = e.detail.text; });
+  });
+</script>
+<script src="../docs/arasuji-data.js" defer></script>
+<script src="../arasuji.js" defer data-container="main" data-heading="h2" data-ui="off" data-demo="on"
+  data-page-id="getting-started" data-namespace="custom"></script>
+</body>
+</html>

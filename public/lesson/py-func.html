@@ -1,0 +1,88 @@
+<!DOCTYPE html>
+<html lang="">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Python入門：関数 | 教材風デモ</title>
+  <link rel="stylesheet" href="./style.css">
+</head>
+<body>
+<div class="book">
+  <div class="book-header" role="navigation">
+    <a href="../index.html">教材一覧へ</a>
+    <h1>Python入門：関数</h1>
+  </div>
+  <div class="page-wrapper" tabindex="-1" role="main">
+    <section class="main-content markdown-section">
+      <h1 id="top">Python入門：関数</h1>
+      <p>この教材では、同じ処理をまとめて何度でも使えるようにする「関数」の考え方と書き方を学びます。前の教材で学んだ変数と if 文を使います。</p>
+      <ul id="toc">
+        <li><a href="#sec-1">関数とは</a></li>
+        <li><a href="#sec-2">関数の定義</a></li>
+        <li><a href="#sec-3">引数と戻り値</a></li>
+        <li><a href="#sec-4">関数を組み合わせる</a></li>
+      </ul>
+
+      <h2 id="sec-1">関数とは</h2>
+      <p>関数は、ひとまとまりの処理に名前を付けたものです。名前を書くだけで、その処理を何度でも呼び出せます。</p>
+      <p>実はすでに関数を使っています。画面に文字を出す <code>print</code> や、文字列の長さを数える <code>len</code> は、Python にはじめから用意されている関数です。</p>
+      <pre><code>print("こんにちは")
+print(len("おはよう"))</code></pre>
+      <p>同じ手順を何か所にも書くと、直すときにすべてを書き換えなければなりません。関数にまとめておけば、直す場所は一か所で済みます。</p>
+      <img src="./img/function-box.svg">
+
+      <h2 id="sec-2">関数の定義</h2>
+      <p>自分で関数を作ることを「定義する」といいます。定義には <code>def</code> を使い、関数名のあとに丸括弧とコロンを書きます。</p>
+      <pre><code>def greet():
+    print("こんにちは")
+    print("今日も学習を始めましょう")</code></pre>
+      <p>コロンの次の行から、字下げした部分が関数の中身です。字下げをやめたところで関数の定義は終わります。</p>
+      <h3>定義しただけでは動かない</h3>
+      <p>定義は「こういう手順です」と登録するだけで、その時点では何も起きません。動かすには、関数名に丸括弧を付けて呼び出します。</p>
+      <pre><code>greet()
+greet()</code></pre>
+      <p>2回呼び出せば、中身も2回実行されます。</p>
+      <h3>名前の付け方</h3>
+      <p>関数名は、何をする関数かが分かる動詞にすると読みやすくなります。たとえば <code>show_score</code> や <code>count_words</code> のように、単語を下線でつなぎます。</p>
+
+      <h2 id="sec-3">引数と戻り値</h2>
+      <p>関数に値を渡すと、呼び出すたびに違う相手に対して同じ処理ができます。渡す値を受け取る変数を「引数」といいます。</p>
+      <pre><code>def greet(name):
+    print(name + "さん、こんにちは")
+
+greet("佐藤")
+greet("田中")</code></pre>
+      <p>関数の中で計算した結果を呼び出し元に返すには <code>return</code> を使います。返された値を「戻り値」といいます。</p>
+      <pre><code>def add(a, b):
+    return a + b
+
+total = add(3, 4)
+print(total)</code></pre>
+      <p class="note"><code>return</code> を実行すると、関数はそこで終わります。<code>return</code> より後ろの行は実行されません。</p>
+
+      <h2 id="sec-4">関数を組み合わせる</h2>
+      <p>関数の中から、別の関数を呼び出せます。小さな関数を組み合わせて、大きな処理を組み立てていくのがプログラムの基本です。</p>
+      <pre><code>def average(scores):
+    return sum(scores) / len(scores)
+
+def judge(scores):
+    if average(scores) &gt;= 60:
+        return "合格"
+    return "不合格"
+
+print(judge([70, 55, 80]))</code></pre>
+      <p><code>judge</code> は平均の計算を <code>average</code> に任せています。平均の求め方を変えたくなったら、<code>average</code> だけを直せば済みます。</p>
+      <p>一つの関数には一つの仕事だけをさせると、名前が付けやすく、あとから読み返したときにも分かりやすくなります。</p>
+
+      <div class="share-button-wrapper">
+        <h2 class="ending-h2">お疲れさまでした！</h2>
+        <p>次の教材では、たくさんの値をまとめて扱う「リスト」を学びます。</p>
+        <a href="../index.html">教材一覧へ戻る</a>
+      </div>
+    </section>
+  </div>
+</div>
+<script src="./arasuji-data.js" defer></script>
+<script src="../arasuji.js" defer data-preset="lesson" data-shortcuts="on" data-demo="on"></script>
+</body>
+</html>
