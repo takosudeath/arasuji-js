@@ -2,9 +2,10 @@
 // arasuji.js はページに単独で置かれるので、プリセットを sites.js と1か所にまとめられない
 import fs from 'node:fs/promises';
 import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 import vm from 'node:vm';
 
-const ROOT = path.resolve(path.dirname(new URL(import.meta.url).pathname), '..');
+const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const read = file => fs.readFile(path.join(ROOT, 'public', file), 'utf8');
 
 const sandbox = {};

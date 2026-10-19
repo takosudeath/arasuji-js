@@ -32,7 +32,7 @@
 | 責務 | コア・読み上げ・表示の3層に分ける。コアと読み上げが本体で、表示は差し替えられる既定 UI |
 | サイト固有の部分 | script の data 属性で指定する（コンテナ・見出し・終わりの目印・テーマ色）。教材風のページ用はプリセットにする |
 | 配信 | 静的ファイルだけ（Cloudflare Pages） |
-| 要約 | 生成スクリプトで事前に全位置ぶん作り、JS ファイルに書き出す（Workers AI）。人が出力を確認してから使う |
+| 要約 | 生成スクリプトで事前に全位置ぶん作り、JS ファイルに書き出す（AI のプロバイダーは設定で選ぶ：Workers AI・OpenAI 互換 API・Anthropic）。人が出力を確認してから使う |
 | 進捗 | localStorage |
 
 ## 2. 構成と技術的な制約
@@ -64,7 +64,7 @@ extension/               Chrome 拡張機能（Manifest V3）
   auto.js                「自動で使う」にしたサイトの各 frame で動き、節があれば差し込みを頼む
   arasuji.js・sites.js   pnpm extension で public/ から写す（リポジトリに入れない）
 scripts/
-  generate.mjs           ページ → arasuji-data.js（Workers AI）
+  generate.mjs           ページ → arasuji-data.js（AI で要約）
   copy-extension.mjs     public/ の arasuji.js と sites.js を extension/ に写す
   check-presets.mjs      arasuji.js と sites.js のプリセットが同じ値か確かめる（pnpm extension でも動く）
 arasuji.config.json      generate.mjs 用のサイト設定
@@ -79,7 +79,7 @@ package.json
 - `generate.mjs` は Node.js 標準の `fetch` と `fs` だけで書く（wrangler・HTML パーサーは入れない）
 - デモページの HTML に arasuji のためのクラスや属性を足さない。足してよいのは末尾の script 2行だけ（自前 UI の例を除く）
 - 実在の教材・記事の本文をコピーしない
-- Cloudflare の認証情報は環境変数（`CLOUDFLARE_ACCOUNT_ID`、`CLOUDFLARE_API_TOKEN`）で渡し、リポジトリに入れない
+- AI の認証情報は環境変数で渡し、リポジトリに入れない（10.3）
 
 ### 2.3 package.json
 
@@ -575,7 +575,7 @@ window.ARASUJI_DATA = Object.assign(window.ARASUJI_DATA || {}, {
 
 ```json
 {
-  "model": "@cf/…",
+  "ai": { "provider": "workers-ai", "model": "@cf/…" },
   "sites": [
     {
       "input": "public/lesson",
@@ -613,7 +613,7 @@ HTML パーサーを使わないため、セレクタは arasuji.js より単純
    - `<script>`・`<style>` は中身ごと除く
    - img に alt があれば alt を本文として扱う
    - タグを除き、文字参照（`&lt;`・`&gt;`・`&amp;`・`&quot;`・`&#39;`・`&#数字;` など）を戻し、空白を詰める
-3. 節ごとに Workers AI で節要約を作る
+3. 節ごとに AI で節要約を作る（10.3）
 4. n=1〜節数のそれぞれについて、1〜n節の要約を渡して「ここまでの要点」を作る
 5. 出力を後処理する（10.5）
 6. `output` に arasuji-data.js の形で書き出す
@@ -621,15 +621,27 @@ HTML パーサーを使わないため、セレクタは arasuji.js より単純
 
 ページ ID はファイル名から拡張子を除いたもの、`title` はページの h1 から取る。`index.html` だけは、`input` のディレクトリ名をページ ID にする（arasuji.js の 5.1 と揃える）。
 
-### 10.3 Workers AI の呼び出し
+### 10.3 AI の呼び出し
 
-```
-POST https://api.cloudflare.com/client/v4/accounts/{CLOUDFLARE_ACCOUNT_ID}/ai/run/{model}
-Authorization: Bearer {CLOUDFLARE_API_TOKEN}
-{"messages":[{"role":"system","content":"…"},{"role":"user","content":"…"}]}
-```
+`ai.provider` でプロバイダーを選ぶ。どれも system プロンプトと user の入力（10.4）を1往復で送り、出力の文字列だけを取り出す。
 
-- 返ってくる形はモデルによって違う（`result.response` または `result.choices[0].message.content`）。両方に対応する
+| `provider` | 送り先 | 認証 | 出力の取り出し |
+| --- | --- | --- | --- |
+| `workers-ai` | `POST https://api.cloudflare.com/client/v4/accounts/{CLOUDFLARE_ACCOUNT_ID}/ai/run/{model}` | `Authorization: Bearer {CLOUDFLARE_API_TOKEN}` | `result.response` または `result.choices[0].message.content`（モデルによって違うので両方に対応する） |
+| `openai` | `POST {baseURL}/chat/completions`（`baseURL` の既定は `https://api.openai.com/v1`） | `Authorization: Bearer {OPENAI_API_KEY}`。キーがなければ付けない（ローカルの Ollama など） | `choices[0].message.content` |
+| `anthropic` | `POST {baseURL}/v1/messages`（`baseURL` の既定は `https://api.anthropic.com`） | `x-api-key: {ANTHROPIC_API_KEY}`、`anthropic-version: 2023-06-01` | `content` の `type: "text"` のブロックをつなぐ。`stop_reason` が `refusal` なら空にして警告する |
+
+`ai` に書ける項目。
+
+| 項目 | 意味 |
+| --- | --- |
+| `provider` | `workers-ai`・`openai`・`anthropic` |
+| `model` | モデル名 |
+| `baseURL` | `openai`・`anthropic` の送り先を変える |
+| `apiKeyEnv` | `openai`・`anthropic` で API キーを読む環境変数の名前を変える |
+| `effort` | `anthropic` だけ。`output_config.effort` に渡す（`low` など） |
+
+- 旧形式（トップレベルの `model` だけ）は `workers-ai` として扱う
 
 ### 10.4 プロンプト
 
@@ -802,6 +814,6 @@ NVDA＋Chrome／VoiceOver＋Safari：
 
 まだ決めていないもの。
 
-- **使用する Workers AI のモデル**：前日に2〜3個試して、日本語の自然さで1つに決める。いまの `arasuji.config.json` には仮に `@cf/meta/llama-3.3-70b-instruct-fp8-fast` を入れてある
+- **使用する AI のモデル**：前日に2〜3個試して、日本語の自然さで1つに決める。いまの `arasuji.config.json` には仮に `@cf/meta/llama-3.3-70b-instruct-fp8-fast` を入れてある
 - **Cloudflare Pages での `?demo=` の扱い**：Pages も `.html` 付きの URL を拡張子なしへリダイレクトする。そのときクエリが残るかは確かめていない。拡張子なしのリンク（5.8）なら影響はない
 - **拡張機能のショートカット Alt+Shift+A**：ほかの拡張機能やサイトとぶつからないかは確かめていない。ぶつかったら `chrome://extensions/shortcuts` で変えられる

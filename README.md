@@ -79,10 +79,29 @@ pnpm dev          # http://localhost:8787 でデモを開く
 
 ### 要約データを作る
 
-`arasuji.config.json` に書いたページから、節ごとの要約と「ここまでの要点」を Workers AI で作り、`arasuji-data.js` に書き出します。出力は人が確認してから使ってください。
+`arasuji.config.json` に書いたページから、節ごとの要約と「ここまでの要点」を AI で作り、`arasuji-data.js` に書き出します。出力は人が確認してから使ってください。
+
+使う AI は `arasuji.config.json` の `ai` で選びます。認証情報は環境変数で渡します。
+
+| `provider` | 対象 | 環境変数 |
+| --- | --- | --- |
+| `workers-ai` | Cloudflare Workers AI | `CLOUDFLARE_ACCOUNT_ID`、`CLOUDFLARE_API_TOKEN` |
+| `openai` | OpenAI と、同じ形の API（Ollama・LM Studio・OpenRouter・Gemini など） | `OPENAI_API_KEY`（`apiKeyEnv` で変えられる。ローカルの Ollama などはなくてよい） |
+| `anthropic` | Anthropic（Claude） | `ANTHROPIC_API_KEY`（`apiKeyEnv` で変えられる） |
+
+```jsonc
+// Workers AI
+"ai": { "provider": "workers-ai", "model": "@cf/meta/llama-3.3-70b-instruct-fp8-fast" }
+
+// ローカルの Ollama（OpenAI と同じ形の API なので openai を使い、baseURL を変える）
+"ai": { "provider": "openai", "model": "qwen3:8b", "baseURL": "http://localhost:11434/v1" }
+
+// Anthropic
+"ai": { "provider": "anthropic", "model": "claude-opus-5-5" }
+```
 
 ```sh
-export CLOUDFLARE_ACCOUNT_ID=...
+export CLOUDFLARE_ACCOUNT_ID=...   # provider に合わせて渡す
 export CLOUDFLARE_API_TOKEN=...
 pnpm generate
 

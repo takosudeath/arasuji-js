@@ -2,8 +2,9 @@
 // 元は public/ のほうだけを直す（extension/ の写しはリポジトリに入れない）
 import fs from 'node:fs/promises';
 import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 
-const ROOT = path.resolve(path.dirname(new URL(import.meta.url).pathname), '..');
+const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const FILES = ['arasuji.js', 'sites.js'];
 
 for (const file of FILES) {

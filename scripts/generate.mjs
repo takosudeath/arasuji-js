@@ -1,11 +1,12 @@
-// ページ → arasuji-data.js（Workers AI）
-//   pnpm generate       Workers AI で要約・要点を作る
+// ページ → arasuji-data.js（AI のプロバイダーは arasuji.config.json の ai で選ぶ）
+//   pnpm generate       AI で要約・要点を作る
 //   pnpm generate:dry   API を呼ばず、本文の1文目で仮の要約・要点を作る
 // HTML パーサーを使わないので、セレクタは単純な書き方だけを扱う（docs/spec.md 10.1）
 import fs from 'node:fs/promises';
 import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 
-const ROOT = path.resolve(path.dirname(new URL(import.meta.url).pathname), '..');
+const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const DRY = process.argv.includes('--no-ai');
 const POINT_MAX = 35;
 
@@ -16,7 +17,7 @@ const PROMPTS = {
 
 async function main() {
   const config = JSON.parse(await fs.readFile(path.join(ROOT, 'arasuji.config.json'), 'utf8'));
-  const ai = DRY ? null : createAI(config.model);
+  const ai = DRY ? null : createAI(config);
 
   for (const site of config.sites) {
     const inputDir = path.join(ROOT, site.input);
@@ -193,39 +194,103 @@ function clean(raw) {
 }
 
 // ---------------------------------------------------------------------------
-// Workers AI
+// AI の呼び出し（docs/spec.md 10.3）
+// どのプロバイダーも (system, user) => 出力文 の関数にそろえる
 
-function createAI(model) {
-  const account = process.env.CLOUDFLARE_ACCOUNT_ID;
-  const token = process.env.CLOUDFLARE_API_TOKEN;
-  if (!account || !token) {
-    console.error('CLOUDFLARE_ACCOUNT_ID と CLOUDFLARE_API_TOKEN を環境変数で渡してください（API を呼ばずに試すなら pnpm generate:dry）');
-    process.exit(1);
-  }
-  if (!model) {
-    console.error('arasuji.config.json に model を書いてください');
-    process.exit(1);
-  }
+const PROVIDERS = {
+  'workers-ai': workersAI,
+  openai: openaiCompatible,
+  anthropic,
+};
+
+function createAI(config) {
+  // 旧形式（トップレベルの model だけ）は Workers AI として扱う
+  const ai = config.ai || (config.model ? { provider: 'workers-ai', model: config.model } : null);
+  if (!ai || !ai.provider || !ai.model) fail('arasuji.config.json の ai に provider と model を書いてください');
+  const provider = PROVIDERS[ai.provider];
+  if (!provider) fail(`ai.provider は ${Object.keys(PROVIDERS).join('・')} のどれかにしてください: ${ai.provider}`);
+  console.log(`[ai] ${ai.provider} / ${ai.model}`);
+  return provider(ai);
+}
+
+function workersAI({ model }) {
+  const account = requireEnv('CLOUDFLARE_ACCOUNT_ID');
+  const token = requireEnv('CLOUDFLARE_API_TOKEN');
   const url = `https://api.cloudflare.com/client/v4/accounts/${account}/ai/run/${model}`;
 
   return async (system, user) => {
-    const res = await fetch(url, {
-      method: 'POST',
-      headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
-      body: JSON.stringify({ messages: [{ role: 'system', content: system }, { role: 'user', content: user }] }),
+    const json = await postJSON('Workers AI', url, { Authorization: `Bearer ${token}` }, {
+      messages: [{ role: 'system', content: system }, { role: 'user', content: user }],
     });
-    const json = await res.json().catch(() => null);
-    if (!res.ok || !json || json.success === false) {
-      const detail = json && json.errors ? JSON.stringify(json.errors) : res.statusText;
-      throw new Error(`Workers AI の呼び出しに失敗しました（${res.status}）: ${detail}`);
-    }
+    if (json.success === false) throw new Error(`Workers AI の呼び出しに失敗しました: ${JSON.stringify(json.errors)}`);
     // 返ってくる形はモデルによって違う
     const r = json.result || {};
-    const text = typeof r.response === 'string' ? r.response
+    return typeof r.response === 'string' ? r.response
       : r.choices && r.choices[0] && r.choices[0].message ? r.choices[0].message.content
       : '';
-    return text;
   };
+}
+
+// OpenAI の Chat Completions と同じ形の API（OpenAI・Ollama・LM Studio・OpenRouter・Gemini など）
+function openaiCompatible({ model, baseURL = 'https://api.openai.com/v1', apiKeyEnv = 'OPENAI_API_KEY' }) {
+  // ローカルの Ollama などはキーがいらないので、なくても止めない
+  const key = process.env[apiKeyEnv];
+  const url = `${baseURL.replace(/\/+$/, '')}/chat/completions`;
+
+  return async (system, user) => {
+    const json = await postJSON('OpenAI 互換 API', url, key ? { Authorization: `Bearer ${key}` } : {}, {
+      model,
+      messages: [{ role: 'system', content: system }, { role: 'user', content: user }],
+    });
+    const m = json.choices && json.choices[0] && json.choices[0].message;
+    return m ? m.content : '';
+  };
+}
+
+function anthropic({ model, baseURL = 'https://api.anthropic.com', apiKeyEnv = 'ANTHROPIC_API_KEY', effort }) {
+  const key = requireEnv(apiKeyEnv);
+  const url = `${baseURL.replace(/\/+$/, '')}/v1/messages`;
+
+  return async (system, user) => {
+    const json = await postJSON('Anthropic API', url, { 'x-api-key': key, 'anthropic-version': '2023-06-01' }, {
+      model,
+      max_tokens: 16000,
+      system,
+      messages: [{ role: 'user', content: user }],
+      ...(effort ? { output_config: { effort } } : {}),
+    });
+    if (json.stop_reason === 'refusal') {
+      console.warn(`[warn] モデルが応答を断りました: ${JSON.stringify(json.stop_details)}`);
+      return '';
+    }
+    // 思考のブロックが先に来ることがあるので、text だけをつなぐ
+    return (json.content || []).filter(b => b.type === 'text').map(b => b.text).join('');
+  };
+}
+
+async function postJSON(label, url, headers, body) {
+  const res = await fetch(url, {
+    method: 'POST',
+    headers: { ...headers, 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  });
+  const json = await res.json().catch(() => null);
+  if (!res.ok || !json) {
+    const detail = json ? JSON.stringify(json.error || json.errors || json) : res.statusText;
+    throw new Error(`${label} の呼び出しに失敗しました（${res.status}）: ${detail}`);
+  }
+  return json;
+}
+
+function requireEnv(name) {
+  const v = process.env[name];
+  if (!v) fail(`環境変数 ${name} を渡してください（API を呼ばずに試すなら pnpm generate:dry）`);
+  return v;
+}
+
+function fail(message) {
+  console.error(message);
+  process.exit(1);
 }
 
 // ---------------------------------------------------------------------------
