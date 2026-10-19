@@ -30,11 +30,25 @@
     }
     .demo a.main { background: #2a7ab0; color: #fff; }
     code { padding: .1em .3em; border-radius: 3px; background: #f0f2f4; }
+    .note { margin: 1.5em 0; padding: 1em 1.25em; border-left: 4px solid #2a7ab0; border-radius: 0 8px 8px 0; background: #f2f7fb; }
+    .note h2 { margin: 0 0 .25em; font-size: 1.1em; }
+    .note p { margin: 0 0 .5em; }
+    .note p:last-child { margin-bottom: 0; }
+    .repo { margin: .5em 0 0; }
+    .repo a, footer a { color: #2a7ab0; }
+    footer { margin-top: 3em; padding-top: 1em; border-top: 1px solid #ddd; color: #555; font-size: .9em; }
   </style>
 </head>
 <body>
   <h1>arasuji.js デモ</h1>
   <p class="lead">中断した長文ページを再開するときに、「前回のあらすじ」を音声で聞けるようにするライブラリのデモです。</p>
+  <p class="repo"><a href="https://github.com/takosudeath/arasuji-js">ソースコードと使い方（GitHub・外部サイト）</a></p>
+
+  <section class="note" aria-labelledby="sr-note">
+    <h2 id="sr-note">スクリーンリーダーで使う前提です</h2>
+    <p>音声で学ぶ人（スクリーンリーダーの利用者）向けに作っています。あらすじは aria-live でスクリーンリーダーに渡すので、arasuji.js 自身は音を出しません。</p>
+    <p>ふだんスクリーンリーダーを使っていない人は、NVDA・VoiceOver・ナレーターなどを起動してから試してください。起動していなくても、「前回のあらすじ」欄の「読み上げ：」の字幕で、読み上げられる文を確かめられます。</p>
+  </section>
 
   <section class="demo">
     <h2>教材風：Python入門：関数</h2>
@@ -75,5 +89,9 @@
       <li><a href="./custom/?demo=reset">進捗を消して開く</a></li>
     </ul>
   </section>
+
+  <footer>
+    <p><a href="https://github.com/takosudeath/arasuji-js">arasuji.js の GitHub リポジトリ（外部サイト）</a>：組み込み方・設定・仕様</p>
+  </footer>
 </body>
 </html>
