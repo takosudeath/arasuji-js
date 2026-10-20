@@ -1,6 +1,7 @@
 {
   "name": "arasuji",
   "private": true,
+  "license": "MIT",
   "type": "module",
   "scripts": {
     "dev": "serve public -l 8787",

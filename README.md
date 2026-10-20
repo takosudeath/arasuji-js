@@ -173,3 +173,7 @@ docs/spec.md         仕様
 - 拡張機能は Chrome だけで、ストアには出していません
 
 ほかの制約は [docs/spec.md](docs/spec.md) の12章にあります。
+
+## ライセンス
+
+[MIT License](LICENSE)
