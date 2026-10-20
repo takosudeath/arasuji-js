@@ -1,0 +1,9 @@
+// public/ を静的配信する。pnpm run deploy で <name>.<account>.workers.dev に上げる
+// 独自ドメインで配信するときは wrangler.local.jsonc を作り、pnpm run deploy:local で上げる（README 参照）
+{
+  "name": "arasuji",
+  "compatibility_date": "2026-10-01",
+  "assets": {
+    "directory": "./public"
+  }
+}

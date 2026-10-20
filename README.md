@@ -123,6 +123,30 @@ pnpm extension
 
 プリセット（`lesson`）の値は `public/arasuji.js` と `public/sites.js` の両方にあります。`arasuji.js` はページに単独で置かれるので、1か所にまとめられないためです。片方を変えたら、もう片方も同じ値にしてください。`pnpm check` で一致を確かめられます（`pnpm extension` でも確かめます）。
 
+### デプロイする
+
+`public/` を Cloudflare Workers の静的アセットとして配信します。初回は `pnpm dlx wrangler login` でログインしてください。
+
+```sh
+pnpm run deploy   # arasuji.<アカウント>.workers.dev に上げる
+```
+
+独自ドメインで配信するときは、`wrangler.jsonc` を写して `wrangler.local.jsonc` を作り、`routes` を足します。このファイルはリポジトリに入れません。
+
+```jsonc
+{
+  // wrangler.jsonc と同じ内容に、次の2つを足す
+  "workers_dev": false,
+  "routes": [
+    { "pattern": "arasuji.example.com", "custom_domain": true }
+  ]
+}
+```
+
+```sh
+pnpm run deploy:local
+```
+
 ## ファイル構成
 
 ```

@@ -4,3 +4,6 @@ node_modules/
 # pnpm extension で public/ から写すもの
 extension/arasuji.js
 extension/sites.js
+# 独自ドメイン用の wrangler 設定と、wrangler の作業ファイル
+wrangler.local.jsonc
+.wrangler/

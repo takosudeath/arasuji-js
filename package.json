@@ -9,7 +9,9 @@
     "extension": "node scripts/check-presets.mjs && node scripts/copy-extension.mjs",
     "check": "node scripts/check-presets.mjs",
     "test": "vitest run",
-    "test:watch": "vitest"
+    "test:watch": "vitest",
+    "deploy": "pnpm dlx wrangler deploy",
+    "deploy:local": "pnpm dlx wrangler deploy -c wrangler.local.jsonc"
   },
   "devDependencies": {
     "jsdom": "^30.1.2",
