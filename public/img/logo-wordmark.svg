@@ -1,0 +1,16 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 408 128" role="img" aria-labelledby="title">
+  <title id="title">arasuji.js</title>
+  <style>
+    .name { fill: #222; }
+    @media (prefers-color-scheme: dark) { .name { fill: #f4f6f8; } }
+  </style>
+  <rect width="128" height="128" rx="28" fill="#2a7ab0"/>
+  <path fill="#fff" d="M40 28H88A16 16 0 0 1 104 44V72A16 16 0 0 1 88 88H62L40 106V88A16 16 0 0 1 24 72V44A16 16 0 0 1 40 28Z"/>
+  <g stroke="#2a7ab0" stroke-width="7" stroke-linecap="round">
+    <path d="M39 47H68"/>
+    <path d="M39 60H89"/>
+    <path d="M39 73H60"/>
+  </g>
+  <path fill="#f2a541" d="M77 20H95V54L86 46.5L77 54Z"/>
+  <text x="152" y="84" font-family="system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', sans-serif" font-size="60" font-weight="700" letter-spacing="-1"><tspan class="name">arasuji</tspan><tspan fill="#2a7ab0">.js</tspan></text>
+</svg>
