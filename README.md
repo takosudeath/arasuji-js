@@ -1,4 +1,6 @@
-<h1><img src="public/img/logo-wordmark.svg" alt="arasuji.js" width="320"></h1>
+# arasuji.js
+
+<img src="public/img/logo-wordmark.svg" alt="arasuji.js のロゴ" width="320">
 
 長文ページを中断したあとで再開するときに、「前回のあらすじ」を音声で聞けるようにするライブラリです。音声で学ぶ人（スクリーンリーダーの利用者）向けに作っています。
 
