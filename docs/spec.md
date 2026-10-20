@@ -67,6 +67,11 @@ scripts/
   generate.mjs           ページ → arasuji-data.js（AI で要約）
   copy-extension.mjs     public/ の arasuji.js と sites.js を extension/ に写す
   check-presets.mjs      arasuji.js と sites.js のプリセットが同じ値か確かめる（pnpm extension でも動く）
+test/                    pnpm test（Vitest）
+  arasuji/               arasuji.js を jsdom のページに読み込み、公開 API とイベントを通して確かめる
+  generate.test.mjs      generate.mjs（AI は呼ばず、fetch を差し替える）
+  sites.test.mjs         sites.js
+  presets.test.mjs       check-presets.mjs を動かす
 arasuji.config.json      generate.mjs 用のサイト設定
 package.json
 ```
@@ -74,7 +79,8 @@ package.json
 ### 2.2 制約
 
 - パッケージマネージャーは pnpm
-- 依存は devDependencies の `serve` だけ。ビルドしない
+- 依存は devDependencies の `serve`（デモ配信）と、テスト用の `vitest`・`jsdom` だけ。ビルドしない
+- `arasuji.js` のテストは公開 API・イベント・DOM だけを見る（内部の関数を取り出すために本体を書き換えない）
 - `arasuji.js` は素の JavaScript（ES2020）、モジュールにしない1ファイル
 - `generate.mjs` は Node.js 標準の `fetch` と `fs` だけで書く（wrangler・HTML パーサーは入れない）
 - デモページの HTML に arasuji のためのクラスや属性を足さない。足してよいのは末尾の script 2行だけ（自前 UI の例を除く）
@@ -92,9 +98,12 @@ package.json
     "dev": "serve public -l 8787",
     "generate": "node scripts/generate.mjs",
     "generate:dry": "node scripts/generate.mjs --no-ai",
-    "extension": "node scripts/copy-extension.mjs"
+    "extension": "node scripts/check-presets.mjs && node scripts/copy-extension.mjs",
+    "check": "node scripts/check-presets.mjs",
+    "test": "vitest run",
+    "test:watch": "vitest"
   },
-  "devDependencies": { "serve": "^14" }
+  "devDependencies": { "jsdom": "^30.1.2", "serve": "^14", "vitest": "^5.0.4" }
 }
 ```
 

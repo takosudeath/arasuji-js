@@ -4,7 +4,7 @@
 // HTML パーサーを使わないので、セレクタは単純な書き方だけを扱う（docs/spec.md 10.1）
 import fs from 'node:fs/promises';
 import path from 'node:path';
-import { fileURLToPath } from 'node:url';
+import { fileURLToPath, pathToFileURL } from 'node:url';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const DRY = process.argv.includes('--no-ai');
@@ -176,7 +176,7 @@ function firstSentence(text) {
 function clean(raw) {
   let s = String(raw ?? '').replace(/<think>[\s\S]*?<\/think>/gi, '');
   s = s.split(/\r?\n/).map(l => l.trim()).find(Boolean) || '';
-  s = s.replace(/^(?:[*#>\-\s]*)(?:要約|要点|節要約|まとめ|この節で学ぶこと|回答|出力)\s*[:：]\s*/, '');
+  s = s.replace(/^(?:[*#>\-\s]*)(?:要約|要点|節要約|まとめ|この節で学ぶこと|回答|出力)\s*(?:\*\*)?\s*[:：]\s*(?:\*\*)?\s*/, '');
   s = s.replace(/^\*\*(.*)\*\*$/, '$1').trim();
   const pairs = [['「', '」'], ['『', '』'], ['"', '"'], ['“', '”'], ["'", "'"]];
   for (let changed = true; changed;) {
@@ -300,7 +300,12 @@ function render(data) {
     `window.ARASUJI_DATA = Object.assign(window.ARASUJI_DATA || {}, ${JSON.stringify(data, null, 2)});\n`;
 }
 
-main().catch(e => {
-  console.error(e.message || e);
-  process.exit(1);
-});
+// テストから import したときは動かさない
+export { parsePage, extractContainer, cutAtEndMarker, toText, decodeEntities, summarizePage, firstSentence, clean, PROVIDERS, render };
+
+if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
+  main().catch(e => {
+    console.error(e.message || e);
+    process.exit(1);
+  });
+}

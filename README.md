@@ -62,11 +62,12 @@
 
 ## 開発
 
-pnpm を使います。依存は `serve` だけで、ビルドはありません。
+pnpm を使います。依存は `serve`（デモ配信）と、テスト用の `vitest`・`jsdom` だけで、ビルドはありません。
 
 ```sh
 pnpm install
 pnpm dev          # http://localhost:8787 でデモを開く
+pnpm test         # テスト（Vitest。arasuji.js は jsdom で動かす）
 ```
 
 デモは `public/` にあります。
@@ -136,6 +137,7 @@ scripts/
   generate.mjs       要約データを作る
   copy-extension.mjs public/ のファイルを extension/ に写す
   check-presets.mjs  プリセットが同じ値か確かめる
+test/                テスト（test/arasuji/ が本体のテスト）
 docs/spec.md         仕様
 ```
 
