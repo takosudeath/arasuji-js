@@ -2,6 +2,7 @@
   "name": "arasuji",
   "private": true,
   "license": "MIT",
+  "homepage": "https://arasuji.takosu.me/",
   "type": "module",
   "scripts": {
     "dev": "serve public -l 8787",
