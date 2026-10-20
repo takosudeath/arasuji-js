@@ -125,7 +125,7 @@ pnpm extension
 
 ### デプロイする
 
-`public/` を Cloudflare Workers の静的アセットとして配信します。初回は `pnpm dlx wrangler login` でログインしてください。
+`public/` を Cloudflare Workers の静的アセットとして配信します。初回は `pnpm exec wrangler login` でログインしてください。
 
 ```sh
 pnpm run deploy   # arasuji.<アカウント>.workers.dev に上げる
