@@ -42,6 +42,7 @@
       caption: pick('caption', 'on'),
       cssLayer: pick('cssLayer', 'off'),
       optin: pick('optin', null),
+      introSkip: pick('introSkip', null),
       accent: pick('accent', null), // なければ③の既定の色（ダークモードでは明るい色）
     };
   }
@@ -374,8 +375,17 @@
       target.focus();
     }
 
+    // data-intro-skip：導入部分として選ばない要素（記事の日付・タグなど）。不正なセレクタなら使わない
+    let introSkip = cfg.introSkip;
+    if (introSkip) {
+      try { document.querySelector(introSkip); } catch (_) {
+        console.warn('[arasuji] data-intro-skip のセレクタが不正です:', introSkip);
+        introSkip = null;
+      }
+    }
+
     // h1（ページ名）より後ろ、最初の見出しより前にある、文字を含む最初の要素。
-    // h1 より前のパンくずなどは導入部分ではない。h1 そのものと③の要素も飛ばす
+    // h1 より前のパンくずなどは導入部分ではない。h1 そのものと③の要素、data-intro-skip に合う要素も飛ばす
     function findIntro(container, firstHeading) {
       const h1 = container.querySelector('h1');
       let passed = !(h1 && h1.compareDocumentPosition(firstHeading) & Node.DOCUMENT_POSITION_FOLLOWING);
@@ -390,6 +400,7 @@
             continue;
           }
           if (!passed || hasArasujiClass(child)) continue;
+          if (introSkip && child.matches(introSkip)) continue;
           if (/^(SCRIPT|STYLE|TEMPLATE)$/.test(child.tagName) || child.hidden) continue;
           if (!normalizeText(child.textContent)) continue;
           return child;
@@ -555,8 +566,25 @@
     });
 
     // --- 状態の反映・字幕・光らせる演出
+    // 読み上げたあらすじ・全体像は、欄の文としても見せる（aria-hidden にしない）。
+    // スクリーンリーダーなしで押しても結果がわかり、拡大鏡と併用する人にも読まれる文と同じものが見える
+    let showing = 'recap';
+    const render = () => {
+      text.textContent = showing === 'overview' ? api.getOverviewText() : api.getRecapText();
+    };
     document.addEventListener('arasuji:change', () => {
-      text.textContent = api.getRecapText();
+      showing = 'recap';
+      render();
+    }, { signal });
+    document.addEventListener('arasuji:announce', e => {
+      // ボタンでもショートカットでも同じに扱うため、読んだ文で見分ける
+      if (e.detail.text === api.getOverviewText()) showing = 'overview';
+      else if (e.detail.text === api.getRecapText()) showing = 'recap';
+      else return;
+      render();
+      text.classList.remove('arasuji-updated');
+      void text.offsetWidth; // 同じ文をもう一度読んだときも、書き換えたとわかるようにする
+      text.classList.add('arasuji-updated');
     }, { signal });
     // 光らせる演出も字幕と同じくデモ用なので、data-caption="off" で一緒に止める
     if (showCaption) {
@@ -609,7 +637,12 @@
 .arasuji-recap .arasuji-recap-heading {
   margin: 0 0 .5em; padding: 0; border: 0; font-size: 1.15em; line-height: 1.4; color: var(--arasuji-c);
 }
-.arasuji-recap .arasuji-recap-text { margin: 0 0 .75em; }
+.arasuji-recap .arasuji-recap-text { margin: 0 0 .75em; border-radius: 4px; }
+@keyframes arasuji-updated {
+  from { background: color-mix(in srgb, var(--arasuji-c) 18%, transparent); }
+  to { background: transparent; }
+}
+.arasuji-recap .arasuji-recap-text.arasuji-updated { animation: arasuji-updated 1.2s ease-out; }
 .arasuji-actions { display: flex; flex-wrap: wrap; gap: .5em; margin: 0 0 .75em; }
 .arasuji-button {
   appearance: none; margin: 0; padding: .55em 1em; min-height: 44px;

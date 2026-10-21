@@ -122,6 +122,22 @@ describe('resume（続きへ）', () => {
     assert.equal(p.document.activeElement.id, 'lead');
   });
 
+  test('data-intro-skip に合う要素（記事の日付など）は導入部分にしない', async () => {
+    const body = `<article><header><h1>題</h1><p class="post-meta">公開日: 2026年10月21日</p></header>
+      <nav><a href="#s1">目次</a></nav><p id="lead">リード文</p><h2 id="s1">一</h2></article>`;
+    const p = await load({ body, attrs: { container: 'article', ui: 'off', 'intro-skip': '.post-meta, nav' } });
+    p.api.resume();
+    assert.equal(p.document.activeElement.id, 'lead');
+  });
+
+  test('data-intro-skip のセレクタが不正なら、警告して使わない', async () => {
+    const body = '<main><h1>題</h1><p id="lead">リード文</p><h2>一</h2></main>';
+    const p = await load({ body, attrs: { ui: 'off', 'intro-skip': '[[[' } });
+    p.api.resume();
+    assert.equal(p.document.activeElement.id, 'lead');
+    assert.ok(p.logs.some(l => l.level === 'warn' && l.text.includes('data-intro-skip')));
+  });
+
   test('導入部分がなければ、最初の見出しへ', async () => {
     const p = await load({ body: '<main><h1>題</h1><h2 id="s1">一</h2><h2>二</h2></main>', attrs: { ui: 'off' } });
     p.api.resume();

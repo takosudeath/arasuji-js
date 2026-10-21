@@ -52,7 +52,8 @@ URL の `v1` は版です。互換性のない変更は `/v2/` に入れるの�
 | `data-autoplay` | `off` | `on` で、開いたときにあらすじを自動で読み上げる |
 | `data-ui` | `on` | `off` で既定の UI を入れない（自前の UI を作るとき） |
 | `data-optin` | なし | ボタンのセレクタ。そのボタンでオンにしたときだけ動く（下の「使う人だけオンにする」） |
-| `data-caption` | `on` | `off` で字幕と光らせる演出を止める。どちらもデモ用なので、デモ以外では `off` を勧めます |
+| `data-caption` | `on` | `off` で字幕と光らせる演出を止める。どちらもデモ用なので、デモ以外では `off` を勧めます（止めても、読み上げたあらすじ・全体像はあらすじ欄の文として表示します） |
+| `data-intro-skip` | なし | 未着手の「続きから読む」で、移り先にしない要素のセレクタ（例：`.post-meta, nav`。記事の日付やタグの段落を飛ばす） |
 | `data-css-layer` | `off` | `on` で差し込む CSS を `@layer arasuji` に入れ、サイトの CSS が詳細度によらず勝つようにする |
 
 ほかの設定、公開 API（`window.Arasuji`）、イベント（`arasuji:ready` など）は [docs/spec.md](docs/spec.md) の 4章と8章を見てください。自前の UI を作る例は `public/custom/` にあります。

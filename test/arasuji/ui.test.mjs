@@ -136,6 +136,37 @@ describe('あらすじ欄', () => {
     assert.ok(css.startsWith('@layer arasuji {'));
   });
 
+  test('読み上げた全体像・あらすじを、欄の文としても見せる（字幕を止めていても）', async () => {
+    const p = await lesson({ attrs: { caption: 'off' } });
+    const text = p.$('.arasuji-recap-text');
+    assert.equal(text.closest('[aria-hidden]'), null);
+
+    let done = nextAnnounce(p.document);
+    buttonByText(p, '全体像を聞く').click();
+    await done;
+    assert.equal(text.textContent, p.api.getOverviewText());
+    assert.ok(text.classList.contains('arasuji-updated'));
+
+    done = nextAnnounce(p.document);
+    buttonByText(p, 'もう一度聞く').click();
+    await done;
+    assert.equal(text.textContent, p.api.getRecapText());
+  });
+
+  test('ほかの読み上げでは欄の文を変えず、進捗が変わればあらすじに戻す', async () => {
+    const p = await lesson();
+    const text = p.$('.arasuji-recap-text');
+    let done = nextAnnounce(p.document);
+    p.api.overview();
+    await done;
+    done = nextAnnounce(p.document);
+    p.api.announce('関係のない文');
+    await done;
+    assert.equal(text.textContent, p.api.getOverviewText());
+    p.api.markRead(1);
+    assert.equal(text.textContent, p.api.getRecapText());
+  });
+
   test('data-caption="off" なら字幕を置かず、光らせもしない', async () => {
     const p = await lesson({ attrs: { caption: 'off' } });
     assert.equal(p.$('.arasuji-caption'), null);
