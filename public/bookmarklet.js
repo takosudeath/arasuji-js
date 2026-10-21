@@ -50,7 +50,7 @@
         alert('arasuji：このページでは節の見出しが見つかりませんでした。');
         return null;
       }
-      return load(target.doc, 'arasuji.js', target.cfg).then(() => {
+      return load(target.doc, 'v1/arasuji.js', target.cfg).then(() => {
         if (!target.doc.getElementById('arasuji-live')) {
           alert('arasuji：このページでは節の見出しが見つかりませんでした。');
         }

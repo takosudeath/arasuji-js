@@ -19,7 +19,7 @@ describe('起動', () => {
   test('コンテナがなければ何もしない（API もイベントも通知領域も置かない）', async () => {
     const p = await load({ body: '<div><h2>節</h2></div>' });
     assert.equal(p.api, undefined);
-    assert.equal(p.events.length, 0);
+    assert.equal(p.events.filter(e => e.name !== 'arasuji:unavailable').length, 0);
     assert.equal(p.$('#arasuji-live'), null);
     assert.ok(p.logs.some(l => l.level === 'warn' && l.text.includes('コンテナが見つかりません')));
   });

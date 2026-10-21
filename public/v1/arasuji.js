@@ -39,7 +39,10 @@
       shortcuts: pick('shortcuts', 'off'),
       autoplay: pick('autoplay', 'off'),
       ui: pick('ui', 'on'),
-      accent: pick('accent', '#2a7ab0'),
+      caption: pick('caption', 'on'),
+      cssLayer: pick('cssLayer', 'off'),
+      optin: pick('optin', null),
+      accent: pick('accent', null), // なければ③の既定の色（ダークモードでは明るい色）
     };
   }
 
@@ -54,14 +57,15 @@
     return name;
   }
 
-  // ページの構造を読むだけで、書き換えない。③も同じ関数で見出しを探す
+  // ページの構造を読むだけで、書き換えない。③も同じ関数で見出しを探す。
+  // 見つからなければ { error }（arasuji:unavailable の detail になる）を返す
   function findSections(cfg) {
+    const fail = (reason, message, selector) => ({ error: { reason, message, selector } });
     let container;
     try { container = document.querySelector(cfg.container); } catch (e) {
-      console.warn('[arasuji] data-container のセレクタが不正です:', cfg.container);
-      return null;
+      return fail('invalid-selector', 'data-container のセレクタが不正です', cfg.container);
     }
-    if (!container) return null;
+    if (!container) return fail('no-container', '本文のコンテナが見つかりません', cfg.container);
     let endMarker = null;
     let headings = [];
     try {
@@ -69,10 +73,16 @@
       headings = [...container.querySelectorAll(cfg.heading)]
         .filter(h => !(endMarker && endMarker.contains(h)));
     } catch (e) {
-      console.warn('[arasuji] data-heading / data-end のセレクタが不正です:', cfg.heading, cfg.end);
-      return null;
+      return fail('invalid-selector', 'data-heading / data-end のセレクタが不正です', cfg.end ? `${cfg.heading} ${cfg.end}` : cfg.heading);
     }
+    if (headings.length === 0) return fail('no-headings', '節の見出しが見つかりません', cfg.heading);
     return { container, endMarker, headings };
+  }
+
+  // 動けなかったことを知らせる。ページ側はこれを見て、切り替えボタンを隠すなどできる
+  function unavailable(error) {
+    console.warn(`[arasuji] ${error.message}:`, error.selector);
+    emit('arasuji:unavailable', error);
   }
 
   function normalizeText(s) {
@@ -87,6 +97,16 @@
 
   function emit(name, detail) {
     document.dispatchEvent(new CustomEvent(name, { detail }));
+  }
+
+  // 利用者の設定（自動読み上げ・オプトイン）。範囲は namespace 全体
+  function readSettings(store, namespace) {
+    const s = store.get(`arasuji-settings:${namespace}`);
+    return s && typeof s === 'object' ? s : {};
+  }
+
+  function writeSettings(store, namespace, patch) {
+    store.set(`arasuji-settings:${namespace}`, Object.assign(readSettings(store, namespace), patch));
   }
 
   // localStorage が使えなければメモリに持つ
@@ -129,17 +149,11 @@
   // ---------------------------------------------------------------------------
   // ① コア
 
-  function createCore(cfg, store) {
+  // signal を abort すると、ページに付けたリスナーを外す（destroy()）
+  function createCore(cfg, store, signal) {
     const found = findSections(cfg);
-    if (!found) {
-      console.warn('[arasuji] 本文のコンテナが見つかりません:', cfg.container);
-      return null;
-    }
+    if (found.error) return found;
     const { container, endMarker, headings } = found;
-    if (headings.length === 0) {
-      console.warn('[arasuji] 節の見出しが見つかりません:', cfg.heading);
-      return null;
-    }
 
     const total = headings.length;
     const pageId = cfg.pageId;
@@ -281,7 +295,7 @@
       }
       const n = sectionOf(el);
       if (n >= 2) markRead(n - 1); // 導入部分と1節目は記録しない
-    });
+    }, { signal });
 
     if (cfg.demo === 'on') applyDemoParam();
 
@@ -308,9 +322,8 @@
   // ---------------------------------------------------------------------------
   // ② 読み上げ・フォーカス
 
-  function createVoice(core, cfg, store) {
+  function createVoice(core, cfg, store, signal) {
     const { api } = core;
-    const settingsKey = `arasuji-settings:${cfg.namespace}`;
 
     // 初期化時に置く（後から置くと読まれないことがある）。③の CSS に頼らず、ここで視覚的に隠す
     const live = document.createElement('div');
@@ -344,6 +357,9 @@
     const recap = () => announce(api.getRecapText());
     const overview = () => announce(api.getOverviewText());
 
+    // tabindex を付けた要素。destroy() で外して元に戻す
+    const focusTargets = new Set();
+
     // フォーカスを動かすのはこの操作のときだけ
     function resume() {
       const { last, next, sections } = api.getState();
@@ -351,7 +367,10 @@
       const target = (last === 0 && findIntro(core.container, core.headings[0])) ||
         core.headings[(next || sections.length) - 1];
       if (!target) return;
-      if (!target.hasAttribute('tabindex')) target.setAttribute('tabindex', '-1');
+      if (!target.hasAttribute('tabindex')) {
+        target.setAttribute('tabindex', '-1');
+        focusTargets.add(target);
+      }
       target.focus();
     }
 
@@ -381,14 +400,13 @@
     }
 
     function getAutoplay() {
-      const s = store.get(settingsKey);
-      if (s && typeof s.autoplay === 'boolean') return s.autoplay;
+      const s = readSettings(store, cfg.namespace);
+      if (typeof s.autoplay === 'boolean') return s.autoplay;
       return cfg.autoplay === 'on';
     }
 
     function setAutoplay(on) {
-      const s = store.get(settingsKey);
-      store.set(settingsKey, Object.assign({}, s && typeof s === 'object' ? s : {}, { autoplay: !!on }));
+      writeSettings(store, cfg.namespace, { autoplay: !!on });
     }
 
     if (cfg.shortcuts === 'on') {
@@ -400,12 +418,21 @@
         if (!action || isEditable(e.target)) return;
         e.preventDefault();
         action();
-      });
+      }, { signal });
     }
 
-    if (getAutoplay()) setTimeout(recap, 1500); // 直後の通知は取りこぼされやすい
+    const autoplayTimer = getAutoplay() ? setTimeout(recap, 1500) : null; // 直後の通知は取りこぼされやすい
 
-    return { api: { announce, recap, overview, resume, setAutoplay, getAutoplay } };
+    // ページに足したものを外す。リスナーは signal で外れる
+    function teardown() {
+      clearTimeout(timer);
+      clearTimeout(autoplayTimer);
+      live.remove();
+      for (const el of focusTargets) el.removeAttribute('tabindex');
+      focusTargets.clear();
+    }
+
+    return { api: { announce, recap, overview, resume, setAutoplay, getAutoplay }, teardown };
   }
 
   function isEditable(el) {
@@ -419,10 +446,16 @@
 
   function createDefaultUI(api, cfg) {
     const found = findSections(cfg);
-    if (!found) return;
+    if (found.error) return;
     const { container, endMarker, headings } = found;
 
-    injectStyle(cfg);
+    // arasuji:destroy で、差し込んだ要素とリスナーをまとめて外す
+    const added = [];
+    const listeners = new AbortController();
+    const { signal } = listeners;
+
+    const style = injectStyle(cfg);
+    if (style) added.push(style);
 
     const make = (tag, className, text) => {
       const el = document.createElement(tag);
@@ -455,8 +488,10 @@
       button('arasuji-button', '全体像を聞く', () => api.overview()),
     );
 
-    const caption = make('p', 'arasuji-caption');
-    caption.setAttribute('aria-hidden', 'true');
+    // 字幕は見える人向けのデモ用。aria-hidden なので、拡大鏡と併用する人には読まれる文と別物になる（data-caption="off" で消す）
+    const showCaption = cfg.caption !== 'off';
+    const caption = showCaption ? make('p', 'arasuji-caption') : null;
+    if (caption) caption.setAttribute('aria-hidden', 'true');
 
     const options = make('div', 'arasuji-options');
     const autoplayLabel = make('label', 'arasuji-autoplay');
@@ -479,11 +514,12 @@
     });
     options.append(resetButton);
 
-    panel.append(heading, text, actions, caption, options);
+    panel.append(heading, text, actions, ...(caption ? [caption] : []), options);
 
     const h1 = container.querySelector('h1');
     if (h1) h1.after(panel);
     else container.prepend(panel);
+    added.push(panel);
 
     // --- 「次の節へ」ボタン
     const total = headings.length;
@@ -500,6 +536,7 @@
       });
       b.addEventListener('focus', () => api.markRead(order));
       wrap.append(b);
+      added.push(wrap);
 
       // 見出しの親が <section> で、次の見出しがその外にあれば、その <section> の末尾が節の終わり（ドキュメント風）。
       // 次の見出しが同じ <section> の中にあれば、次の見出しの直前（教材風。1つの <section> に見出しが並ぶページもこちら）
@@ -520,25 +557,52 @@
     // --- 状態の反映・字幕・光らせる演出
     document.addEventListener('arasuji:change', () => {
       text.textContent = api.getRecapText();
-    });
-    document.addEventListener('arasuji:announce', e => {
-      caption.textContent = `読み上げ：${e.detail.text}`;
-      panel.classList.remove('arasuji-flash');
-      void panel.offsetWidth; // アニメーションをやり直す
-      panel.classList.add('arasuji-flash');
-    });
+    }, { signal });
+    // 光らせる演出も字幕と同じくデモ用なので、data-caption="off" で一緒に止める
+    if (showCaption) {
+      document.addEventListener('arasuji:announce', e => {
+        caption.textContent = `読み上げ：${e.detail.text}`;
+        panel.classList.remove('arasuji-flash');
+        void panel.offsetWidth; // アニメーションをやり直す
+        panel.classList.add('arasuji-flash');
+      }, { signal });
+    }
+    document.addEventListener('arasuji:destroy', () => {
+      listeners.abort();
+      for (const el of added) el.remove();
+    }, { signal });
   }
 
+  // 色はすべて CSS 変数で上書きできる。既定値は light-dark() で、ページの color-scheme に合わせる
+  const COLORS = {
+    bg: ['#fff', '#1f2125'],
+    text: ['#222', '#e8e8e8'],
+    muted: ['#555', '#b4b8bd'],
+    border: ['#ddd', '#4a4d52'],
+    'caption-bg': ['#f4f6f8', '#2b2e33'],
+    'on-accent': ['#fff', '#111'],
+  };
+  const DEFAULT_ACCENT = ['#2a7ab0', '#7cc0ee'];
+
+  // 差し込んだ <style> を返す（すでにあれば null）
   function injectStyle(cfg) {
-    if (document.getElementById('arasuji-style')) return;
+    if (document.getElementById('arasuji-style')) return null;
     const style = document.createElement('style');
     style.id = 'arasuji-style';
-    // ページ側が --arasuji-accent を指定すればそれを使う
-    style.textContent = `
-.arasuji-recap, .arasuji-next { --arasuji-c: var(--arasuji-accent, ${cfg.accent}); }
+    // ページ側が --arasuji-{名前} を指定すればそれを使う。--arasuji-c-{名前} は中で使う値
+    const vars = pickColor => [
+      `--arasuji-c: var(--arasuji-accent, ${cfg.accent || pickColor(DEFAULT_ACCENT)});`,
+      ...Object.entries(COLORS).map(([name, pair]) => `--arasuji-c-${name}: var(--arasuji-${name}, ${pickColor(pair)});`),
+      '--arasuji-c-focus: var(--arasuji-focus, var(--arasuji-c));',
+    ].join(' ');
+    const css = `
+.arasuji-recap, .arasuji-next { ${vars(([light]) => light)} }
+@supports (color: light-dark(#000, #fff)) {
+  .arasuji-recap, .arasuji-next { ${vars(([light, dark]) => `light-dark(${light}, ${dark})`)} }
+}
 .arasuji-recap {
   box-sizing: border-box; max-width: 100%; margin: 1.5em 0; padding: 1em 1.25em;
-  border: 2px solid var(--arasuji-c); border-radius: 10px; background: #fff; color: #222;
+  border: 2px solid var(--arasuji-c); border-radius: 10px; background: var(--arasuji-c-bg); color: var(--arasuji-c-text);
   font-size: 1rem; line-height: 1.7; overflow-wrap: anywhere;
 }
 .arasuji-recap * { box-sizing: border-box; }
@@ -549,28 +613,29 @@
 .arasuji-actions { display: flex; flex-wrap: wrap; gap: .5em; margin: 0 0 .75em; }
 .arasuji-button {
   appearance: none; margin: 0; padding: .55em 1em; min-height: 44px;
-  border: 2px solid var(--arasuji-c); border-radius: 6px; background: #fff; color: var(--arasuji-c);
+  border: 2px solid var(--arasuji-c); border-radius: 6px; background: var(--arasuji-c-bg); color: var(--arasuji-c);
   font: inherit; font-weight: bold; line-height: 1.3; cursor: pointer;
 }
-.arasuji-button:hover { background: color-mix(in srgb, var(--arasuji-c) 10%, #fff); }
-.arasuji-button-primary, .arasuji-button-primary:hover { background: var(--arasuji-c); color: #fff; }
+.arasuji-button:hover { background: color-mix(in srgb, var(--arasuji-c) 10%, var(--arasuji-c-bg)); }
+.arasuji-button-primary, .arasuji-button-primary:hover { background: var(--arasuji-c); color: var(--arasuji-c-on-accent); }
 .arasuji-button:focus-visible, .arasuji-reset:focus-visible, .arasuji-autoplay-input:focus-visible {
-  outline: 3px solid var(--arasuji-c); outline-offset: 2px;
+  outline: 3px solid var(--arasuji-c-focus); outline-offset: 2px;
 }
 .arasuji-recap .arasuji-caption {
-  margin: 0 0 .75em; padding: .5em .75em; border-radius: 6px; background: #f4f6f8; color: #333; font-size: .9em;
+  margin: 0 0 .75em; padding: .5em .75em; border-radius: 6px;
+  background: var(--arasuji-c-caption-bg); color: var(--arasuji-c-text); font-size: .9em;
 }
 .arasuji-recap .arasuji-caption:empty { display: none; }
 .arasuji-options {
   display: flex; flex-wrap: wrap; align-items: center; gap: .5em 1.5em;
-  padding-top: .75em; border-top: 1px solid #ddd; font-size: .9em; color: #555;
+  padding-top: .75em; border-top: 1px solid var(--arasuji-c-border); font-size: .9em; color: var(--arasuji-c-muted);
 }
 .arasuji-autoplay { display: inline-flex; align-items: center; gap: .4em; cursor: pointer; }
 .arasuji-autoplay-input { width: 1.2em; height: 1.2em; margin: 0; accent-color: var(--arasuji-c); }
 .arasuji-recap .arasuji-shortcuts { margin: 0; flex-basis: 100%; }
 .arasuji-reset {
   appearance: none; margin: 0 0 0 auto; padding: .3em .5em; border: 0; background: none;
-  color: #666; font: inherit; text-decoration: underline; cursor: pointer;
+  color: var(--arasuji-c-muted); font: inherit; text-decoration: underline; cursor: pointer;
 }
 .arasuji-next { margin: 2em 0 2.5em; text-align: right; }
 @keyframes arasuji-flash {
@@ -589,7 +654,10 @@
   .arasuji-next .arasuji-button { width: 100%; }
 }
 `;
+    // data-css-layer="on" なら @layer arasuji に入れ、ページの CSS が詳細度によらず勝つようにする
+    style.textContent = cfg.cssLayer === 'on' ? `@layer arasuji {${css}}\n` : css;
     document.head.appendChild(style);
+    return style;
   }
 
   // ---------------------------------------------------------------------------
@@ -598,26 +666,81 @@
   const cfg = resolveConfig(source);
   const store = createStore();
 
-  function init() {
+  let stopRunning = null; // 動いている間だけ入る。destroy() の中身
+  let optinButton = null;
+
+  // 動き出せたら true
+  function start() {
+    if (stopRunning) return true;
     // ブックマークレットを2回押した、ページと拡張の両方が入れた、などで二重に動かないようにする。
     // 拡張は別の JS 環境で動き window.Arasuji が見えないので、DOM に置いたライブ通知領域で確かめる
     if (document.getElementById('arasuji-live')) {
       console.info('[arasuji] このページではすでに動いています');
-      return;
+      emit('arasuji:unavailable', { reason: 'already-running', message: 'このページではすでに動いています', selector: null });
+      return false;
     }
-    const core = createCore(cfg, store);
-    if (!core) return; // コンテナや見出しがなければ何もしない
-    const voice = createVoice(core, cfg, store);
+    const listeners = new AbortController();
+    const core = createCore(cfg, store, listeners.signal);
+    if (core.error) { // コンテナや見出しがなければ何もしない
+      unavailable(core.error);
+      return false;
+    }
+    const voice = createVoice(core, cfg, store, listeners.signal);
 
     let resolveReady;
     const ready = new Promise(r => { resolveReady = r; });
-    window.Arasuji = Object.assign({}, core.api, voice.api, { ready });
+    const api = Object.assign({}, core.api, voice.api, { ready, destroy: () => stop() });
+    window.Arasuji = api;
 
-    if (cfg.ui !== 'off') createDefaultUI(window.Arasuji, cfg);
+    stopRunning = () => {
+      emit('arasuji:destroy', {}); // ③や自前 UI はこれを受けて自分の要素を外す
+      listeners.abort();
+      voice.teardown();
+      if (window.Arasuji === api) delete window.Arasuji;
+    };
+
+    if (cfg.ui !== 'off') createDefaultUI(api, cfg);
 
     const state = core.api.getState();
     resolveReady(state);
     emit('arasuji:ready', state);
+    return true;
+  }
+
+  // 差し込んだ要素とリスナーをすべて外す。同じページでもう一度 start() できる
+  function stop() {
+    if (!stopRunning) return;
+    const run = stopRunning;
+    stopRunning = null;
+    run();
+    if (optinButton) optinButton.setAttribute('aria-pressed', 'false');
+  }
+
+  // data-optin：ページのボタンでオン・オフを切り替える。選んだ状態は namespace ごとに保存し、オンのときだけ動く
+  function setupOptin() {
+    let button = null;
+    try { button = document.querySelector(cfg.optin); } catch (_) { /* 下で知らせる */ }
+    if (!button) {
+      unavailable({ reason: 'no-optin-button', message: 'data-optin のボタンが見つかりません', selector: cfg.optin });
+      return;
+    }
+    optinButton = button;
+    // 状態はボタンの aria-pressed で持つ（destroy() で止めたときもボタンの表示と合う）
+    button.addEventListener('click', () => {
+      const on = button.getAttribute('aria-pressed') !== 'true';
+      writeSettings(store, cfg.namespace, { enabled: on });
+      button.setAttribute('aria-pressed', String(on));
+      if (on) start();
+      else stop();
+    });
+    const on = readSettings(store, cfg.namespace).enabled === true;
+    button.setAttribute('aria-pressed', String(on));
+    if (on) start();
+  }
+
+  function init() {
+    if (cfg.optin) setupOptin();
+    else start();
   }
 
   // defer なしで <head> に置かれた場合にも動くようにする

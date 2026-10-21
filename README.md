@@ -25,16 +25,18 @@
 ```html
 <!-- 汎用（<main> の中の h2 を節の見出しにする） -->
 <script src="./arasuji-data.js" defer></script>
-<script src="/arasuji.js" defer data-container="main" data-heading="h2"></script>
+<script src="/v1/arasuji.js" defer data-container="main" data-heading="h2"></script>
 
 <!-- 教材風のページ（節を <section> で囲まない平らな構造） -->
 <script src="./arasuji-data.js" defer></script>
-<script src="/arasuji.js" defer data-preset="lesson" data-shortcuts="on"></script>
+<script src="/v1/arasuji.js" defer data-preset="lesson" data-shortcuts="on"></script>
 ```
 
 `arasuji-data.js`（要約データ）がなくても動きます。そのときのあらすじは、要点を省いた文（どこまで・続き・残り）になります。
 
 組み込むと、h1 の直後に「前回のあらすじ」欄が、各節の末尾に「次の節へ」ボタンが入ります。
+
+URL の `v1` は版です。互換性のない変更は `/v2/` に入れるので、`/v1/` を指定しておけば、変更でページが壊れることはありません。版なしの `/arasuji.js` は `/v1/arasuji.js` に転送します。
 
 ### 主な設定（data 属性）
 
@@ -49,8 +51,51 @@
 | `data-shortcuts` | `off` | `on` で Alt+Shift+R（あらすじ）・J（続きへ）・O（全体像）を使えるようにする |
 | `data-autoplay` | `off` | `on` で、開いたときにあらすじを自動で読み上げる |
 | `data-ui` | `on` | `off` で既定の UI を入れない（自前の UI を作るとき） |
+| `data-optin` | なし | ボタンのセレクタ。そのボタンでオンにしたときだけ動く（下の「使う人だけオンにする」） |
+| `data-caption` | `on` | `off` で字幕と光らせる演出を止める。どちらもデモ用なので、デモ以外では `off` を勧めます |
+| `data-css-layer` | `off` | `on` で差し込む CSS を `@layer arasuji` に入れ、サイトの CSS が詳細度によらず勝つようにする |
 
 ほかの設定、公開 API（`window.Arasuji`）、イベント（`arasuji:ready` など）は [docs/spec.md](docs/spec.md) の 4章と8章を見てください。自前の UI を作る例は `public/custom/` にあります。
+
+### 色を変える
+
+既定の UI の色は CSS 変数で変えられます。ライブラリのクラス名を上書きする必要はありません。既定値は `light-dark()` なので、ページが `color-scheme: light dark` ならダークモードにも合わせます。
+
+```css
+:root {
+  --arasuji-accent: #8250df;     /* 枠・見出し・ボタン */
+  --arasuji-bg: #fff;            /* 背景 */
+  --arasuji-text: #222;          /* 文字 */
+  --arasuji-muted: #555;         /* 薄い文字 */
+  --arasuji-border: #ddd;        /* 枠線 */
+  --arasuji-caption-bg: #f4f6f8; /* 字幕の背景 */
+  --arasuji-focus: #8250df;      /* フォーカスの輪 */
+  --arasuji-on-accent: #fff;     /* 「続きから読む」の文字 */
+}
+```
+
+### 使う人だけオンにする
+
+ボタンを1つ置き、`data-optin` にそのセレクタを書きます。ライブラリがボタンの `aria-pressed` を管理し、選んだ状態を保存して、オンのときだけ動きます。
+
+```html
+<button id="arasuji-toggle" type="button">「前回のあらすじ」を使う</button>
+<script src="/v1/arasuji.js" defer data-optin="#arasuji-toggle" data-caption="off"></script>
+```
+
+### 止める・動けなかったことを知る
+
+- `Arasuji.destroy()` で、差し込んだ要素・リスナー・タイマーをすべて外します。進捗は残ります。止めたあとにもう一度読み込んでも、二重には動きません
+- 節の見出しが見つからないときなど、動けなかったときは `arasuji:unavailable` イベントを出します（`detail.reason` は `no-container`・`no-headings` など）
+
+```html
+<script>
+  // arasuji.js（defer）より前に登録する
+  document.addEventListener('arasuji:unavailable', () => {
+    document.getElementById('arasuji-toggle').hidden = true;
+  });
+</script>
+```
 
 ### サイトが対応していなくても使う
 
@@ -113,9 +158,24 @@ pnpm generate
 pnpm generate:dry  # API を呼ばず、本文の1文目で仮のデータを作る
 ```
 
+ほかのサイト（ブログなど）でも、ビルドした HTML から作れます。そのサイトに `arasuji.config.json` を置き、`--config` で指定します。`input` と `output` は設定ファイルからの相対パスで、`recursive: true` なら下のディレクトリもたどります（`posts/foo/index.html` のページ ID は `foo`）。
+
+```jsonc
+{
+  "ai": { "provider": "anthropic", "model": "claude-opus-5-5" },
+  "sites": [
+    { "input": "dist/posts", "output": "dist/arasuji-data.js", "recursive": true, "container": "article", "heading": "h2" }
+  ]
+}
+```
+
+```sh
+node path/to/arasuji-js/scripts/generate.mjs --config arasuji.config.json
+```
+
 ### 拡張機能を読み込む
 
-拡張機能は自分のフォルダの中のファイルしか読めないので、`public/` の `arasuji.js` と `sites.js` を `extension/` に写してから読み込みます。直すのは `public/` のほうだけにしてください（写したファイルはリポジトリに入れません）。
+拡張機能は自分のフォルダの中のファイルしか読めないので、`public/v1/arasuji.js` と `public/sites.js` を `extension/` に写してから読み込みます。直すのは `public/` のほうだけにしてください（写したファイルはリポジトリに入れません）。
 
 ```sh
 pnpm extension
@@ -125,7 +185,7 @@ pnpm extension
 
 ### プリセットを変えるとき
 
-プリセット（`lesson`）の値は `public/arasuji.js` と `public/sites.js` の両方にあります。`arasuji.js` はページに単独で置かれるので、1か所にまとめられないためです。片方を変えたら、もう片方も同じ値にしてください。`pnpm check` で一致を確かめられます（`pnpm extension` でも確かめます）。
+プリセット（`lesson`）の値は `public/v1/arasuji.js` と `public/sites.js` の両方にあります。`arasuji.js` はページに単独で置かれるので、1か所にまとめられないためです。片方を変えたら、もう片方も同じ値にしてください。`pnpm check` で一致を確かめられます（`pnpm extension` でも確かめます）。
 
 ### デプロイする
 
@@ -155,7 +215,8 @@ pnpm run deploy:local
 
 ```
 public/
-  arasuji.js         本体（コア・読み上げ・既定 UI）
+  v1/arasuji.js      本体（コア・読み上げ・既定 UI）。互換性のない変更は v2/ に入れる
+  _redirects         版なしの /arasuji.js を /v1/arasuji.js に送る
   sites.js           ブックマークレットと拡張機能が使う、サイトごとの設定
   bookmarklet.js     ブックマークレットから読み込まれる
   bookmarklet.html   ブックマークレットの登録ページ

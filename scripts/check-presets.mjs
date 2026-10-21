@@ -1,4 +1,4 @@
-// public/arasuji.js と public/sites.js のプリセットが同じ値か確かめる。
+// public/v1/arasuji.js と public/sites.js のプリセットが同じ値か確かめる。
 // arasuji.js はページに単独で置かれるので、プリセットを sites.js と1か所にまとめられない
 import fs from 'node:fs/promises';
 import path from 'node:path';
@@ -12,8 +12,8 @@ const sandbox = {};
 vm.runInNewContext(await read('sites.js'), { globalThis: sandbox });
 const fromSites = sandbox.ARASUJI_SITES.presets;
 
-const m = (await read('arasuji.js')).match(/const PRESETS = (\{[\s\S]*?\n {2}\});/);
-if (!m) throw new Error('public/arasuji.js に PRESETS が見つかりません');
+const m = (await read('v1/arasuji.js')).match(/const PRESETS = (\{[\s\S]*?\n {2}\});/);
+if (!m) throw new Error('public/v1/arasuji.js に PRESETS が見つかりません');
 const fromArasuji = vm.runInNewContext(`(${m[1]})`);
 
 const a = JSON.stringify(fromArasuji, null, 2);

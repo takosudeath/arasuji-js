@@ -1,7 +1,10 @@
 import { test, describe, beforeEach, afterEach, vi } from 'vitest';
 import assert from 'node:assert/strict';
+import fs from 'node:fs';
+import os from 'node:os';
+import path from 'node:path';
 import {
-  parsePage, extractContainer, cutAtEndMarker, toText, decodeEntities,
+  listPages, pageIdOf, parsePage, extractContainer, cutAtEndMarker, toText, decodeEntities,
   summarizePage, firstSentence, clean, PROVIDERS, render,
 } from '../scripts/generate.mjs';
 
@@ -231,6 +234,29 @@ describe('summarizePage', () => {
       assert.equal(messages.filter(m => m.includes('35字を超えています')).length, 2);
     } finally {
       warn.mockRestore();
+    }
+  });
+});
+
+describe('ページの一覧とページ ID', () => {
+  test.each([
+    ['py-func.html', 'py-func'],
+    ['index.html', 'docs'],
+    ['posts/hello/index.html', 'hello'],
+    ['posts/hello.html', 'hello'],
+  ])('%s → %s（arasuji.js が URL から作る ID と同じ）', (file, id) => {
+    assert.equal(pageIdOf(file, '/site/public/docs'), id);
+  });
+
+  test('recursive なら下のディレクトリもたどる', async () => {
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'arasuji-gen-'));
+    try {
+      fs.mkdirSync(path.join(dir, 'posts', 'hello'), { recursive: true });
+      for (const f of ['index.html', 'posts/hello/index.html', 'posts/memo.txt']) fs.writeFileSync(path.join(dir, f), '');
+      assert.deepEqual(await listPages(dir, false), ['index.html']);
+      assert.deepEqual(await listPages(dir, true), ['index.html', 'posts/hello/index.html']);
+    } finally {
+      fs.rmSync(dir, { recursive: true, force: true });
     }
   });
 });

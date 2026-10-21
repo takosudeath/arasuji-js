@@ -31,7 +31,7 @@
 | 形 | ページに script を足すだけで動く。既存の要素は変えず、足すだけにする（例外は `resume()` の移り先（見出しと導入部分の先頭）に付ける `tabindex="-1"`） |
 | 責務 | コア・読み上げ・表示の3層に分ける。コアと読み上げが本体で、表示は差し替えられる既定 UI |
 | サイト固有の部分 | script の data 属性で指定する（コンテナ・見出し・終わりの目印・テーマ色）。教材風のページ用はプリセットにする |
-| 配信 | 静的ファイルだけ（Cloudflare Pages） |
+| 配信 | 静的ファイルだけ（Cloudflare Workers の静的アセット）。URL に版を入れる（`/v1/arasuji.js`） |
 | 要約 | 生成スクリプトで事前に全位置ぶん作り、JS ファイルに書き出す（AI のプロバイダーは設定で選ぶ：Workers AI・OpenAI 互換 API・Anthropic）。人が出力を確認してから使う |
 | 進捗 | localStorage |
 
@@ -42,7 +42,8 @@
 ```
 public/
   index.html             デモ一覧＋デモ用リンク（?demo=3days など）
-  arasuji.js             本体（①コア ②読み上げ ③既定 UI）
+  v1/arasuji.js          本体（①コア ②読み上げ ③既定 UI）。URL に版を入れる（2.4）
+  _redirects             版なしの /arasuji.js を /v1/arasuji.js に送る
   lesson/                教材風のデモ
     style.css
     arasuji-data.js      生成物
@@ -62,7 +63,7 @@ extension/               Chrome 拡張機能（Manifest V3）
   background.js          タブに sites.js と arasuji.js を差し込む
   popup.html / popup.js  「このページで使う」ボタンとサイトごとの設定
   auto.js                「自動で使う」にしたサイトの各 frame で動き、節があれば差し込みを頼む
-  arasuji.js・sites.js   pnpm extension で public/ から写す（リポジトリに入れない）
+  arasuji.js・sites.js   pnpm extension で public/v1/arasuji.js と public/sites.js を写す（リポジトリに入れない）
 scripts/
   generate.mjs           ページ → arasuji-data.js（AI で要約）
   copy-extension.mjs     public/ の arasuji.js と sites.js を extension/ に写す
@@ -107,11 +108,17 @@ package.json
 }
 ```
 
+### 2.4 版
+
+- 本体は `/v1/arasuji.js` のように、URL に版（メジャーバージョン）を入れて配信する。組み込む側はこの URL を指定する
+- 互換性のない変更（data 属性・公開 API・イベント・CSS 変数・保存形式の、名前や意味を変えるもの）は、`public/v2/` を作ってそちらに入れる。`v1/` には互換性のある直しと追加だけを入れる
+- 版なしの `/arasuji.js`（以前の組み込み方）は `_redirects` で `/v1/arasuji.js` に送る。最新の版には追従しない
+
 ## 3. アーキテクチャ（3層）
 
 | 層 | 責務 | DOM への関わり | `data-ui="off"` のとき |
 | --- | --- | --- | --- |
-| ① コア | 設定の解決、節の検出、進捗の記録と保存、あらすじ文・全体像の文の組み立て、要約データの参照、状態変化の通知 | 読むだけ（focusin の監視は行う） | 動く |
+| ① コア | 設定の解決、節の検出、進捗の記録と保存、あらすじ文・全体像の文の組み立て、要約データの参照、状態変化の通知、オン・オフの切り替え（4.7）、止める（8.3） | 読むだけ（focusin の監視は行う） | 動く |
 | ② 読み上げ・フォーカス | aria-live への通知、「続きへ」のフォーカス移動、ショートカット、自動読み上げ | ライブ通知領域を1つ置く。`resume()` の移り先（見出しと導入部分の先頭）に `tabindex="-1"` を付ける | 動く |
 | ③ 既定 UI | あらすじ欄、ボタン、「次の節へ」ボタン、字幕、光らせる演出、CSS | 要素と `<style>` を差し込む | 何も差し込まない |
 
@@ -131,18 +138,25 @@ package.json
   function createVoice(core, cfg) { … }     // ②
   function createDefaultUI(api, cfg) { … }  // ③ 公開 API とイベントだけを使う
 
-  if (document.getElementById('arasuji-live')) return;  // すでに動いていれば何もしない（4.6）
-  const core = createCore(cfg);
-  if (!core) return;                        // コンテナや見出しがなければ何もしない
-  const voice = createVoice(core, cfg);
-  window.Arasuji = { ...core.api, ...voice.api, ready: … };
-  if (cfg.ui !== 'off') createDefaultUI(window.Arasuji, cfg);
-  emit('arasuji:ready', core.api.getState());
+  function start() {
+    if (document.getElementById('arasuji-live')) return unavailable('already-running');  // すでに動いていれば何もしない（4.6）
+    const core = createCore(cfg, store, signal);
+    if (core.error) return unavailable(core.error);       // コンテナや見出しがなければ何もしない
+    const voice = createVoice(core, cfg, store, signal);
+    window.Arasuji = { ...core.api, ...voice.api, ready: …, destroy: stop };
+    if (cfg.ui !== 'off') createDefaultUI(window.Arasuji, cfg);
+    emit('arasuji:ready', core.api.getState());
+  }
+  function stop() { … }                     // 8.3
+
+  if (cfg.optin) setupOptin();              // ボタンでオンにしたときだけ start()（4.7）
+  else start();
 })();
 ```
 
 - `document.currentScript` はイベントハンドラや API の中では `null` になるので、最初に変数へ取っておく
-- コアが `null` のとき（コンテナや見出しがない）は、`window.Arasuji` を定義せず、`arasuji:ready` も出さない
+- 動けないとき（コンテナや見出しがない、すでに動いている）は、`window.Arasuji` を定義せず、`arasuji:ready` も出さない。代わりに `arasuji:unavailable` を出す（8.2）
+- ページに付けるリスナーは、すべて1つの `AbortController` の `signal` で付け、止めるときにまとめて外す
 
 ## 4. 組み込み方
 
@@ -153,11 +167,11 @@ package.json
 ```html
 <!-- 教材風 -->
 <script src="./arasuji-data.js" defer></script>
-<script src="../arasuji.js" defer data-preset="lesson" data-shortcuts="on"></script>
+<script src="../v1/arasuji.js" defer data-preset="lesson" data-shortcuts="on"></script>
 
 <!-- 汎用 -->
 <script src="./arasuji-data.js" defer></script>
-<script src="../arasuji.js" defer data-container="main" data-heading="h2"></script>
+<script src="../v1/arasuji.js" defer data-container="main" data-heading="h2"></script>
 ```
 
 - デモページ（11.）では、どちらにも `data-demo="on"` を足す（`?demo=` を受け付けるため）
@@ -166,7 +180,7 @@ package.json
 
 ```html
 <script src="./arasuji-data.js" defer></script>
-<script src="../arasuji.js" defer data-container="main" data-heading="h2" data-ui="off"></script>
+<script src="../v1/arasuji.js" defer data-container="main" data-heading="h2" data-ui="off"></script>
 <script>
   document.addEventListener('arasuji:ready', e => {
     render(e.detail);                                   // 最初の描画
@@ -180,6 +194,7 @@ package.json
     };
     document.addEventListener('arasuji:change', e => render(e.detail));
     document.addEventListener('arasuji:announce', e => showCaption(e.detail.text));
+    document.addEventListener('arasuji:destroy', removeBar, { once: true }); // 止めたとき（8.3）
   });
 </script>
 ```
@@ -199,7 +214,11 @@ package.json
 | `data-demo` | `off` | ① | `on` で `?demo=` パラメータを受け付ける |
 | `data-shortcuts` | `off` | ② | `on` で Alt+Shift+R/J/O を有効にする（他サイトのキーとぶつかるので既定はオフ） |
 | `data-autoplay` | `off` | ② | `on` で読み込みの1.5秒後にあらすじを読む。利用者が変えた値（localStorage）が優先 |
+| `data-optin` | なし | ① | ページのボタンのセレクタ。指定すると、そのボタンでオンにしたときだけ動く（4.7） |
 | `data-ui` | `on` | ③ | `off` で既定 UI を差し込まない |
+| `data-caption` | `on` | ③ | `off` で字幕と光らせる演出を止める（7.3） |
+| `data-css-layer` | `off` | ③ | `on` で差し込む CSS を `@layer arasuji` に入れる（4.5） |
+| `data-accent` | なし | ③ | アクセント色の既定値。`--arasuji-accent` が優先 |
 
 ### 4.4 プリセット `lesson`
 
@@ -212,7 +231,23 @@ package.json
 
 ### 4.5 CSS 変数
 
-- `--arasuji-accent`：既定 UI のアクセント色。ページ側から上書きできる（③だけが使う）
+既定 UI の色は、すべて CSS 変数で上書きできる（③だけが使う）。ページ側は `:root` などに書けばよく、ライブラリのクラス名に頼らなくてよい。
+
+| 変数 | 使うところ | 既定値（ライト／ダーク） |
+| --- | --- | --- |
+| `--arasuji-accent` | 枠・見出し・ボタンの文字と枠・主ボタンの背景 | `#2a7ab0`／`#7cc0ee`（`data-accent` やプリセットがあればその値） |
+| `--arasuji-bg` | あらすじ欄とボタンの背景 | `#fff`／`#1f2125` |
+| `--arasuji-text` | 文字 | `#222`／`#e8e8e8` |
+| `--arasuji-muted` | 設定欄・「進捗を消す」の薄い文字 | `#555`／`#b4b8bd` |
+| `--arasuji-border` | 設定欄の区切り線 | `#ddd`／`#4a4d52` |
+| `--arasuji-caption-bg` | 字幕の背景 | `#f4f6f8`／`#2b2e33` |
+| `--arasuji-focus` | フォーカスの輪 | `--arasuji-accent` と同じ |
+| `--arasuji-on-accent` | 主ボタン（続きから読む）の文字 | `#fff`／`#111` |
+
+- 既定値は `light-dark()` で書く。ページの `color-scheme` が `light dark` ならダークモードに合わせ、指定がなければライトのまま。`light-dark()` に対応していないブラウザ向けに、`@supports` の外にライトの値も置く
+- 中では `--arasuji-c-{名前}: var(--arasuji-{名前}, 既定値)` として使う。ページ側が祖先の要素に書いた値を、③の要素の上で消さないため
+- `data-css-layer="on"` なら、差し込む CSS を `@layer arasuji` で包む。レイヤーの外にあるページの CSS が、詳細度に関係なく勝つ
+  - 既定はオフ。ページの `h2`・`button`・`section` などへの一般的な指定も勝つので、既定 UI の見た目がページに引きずられる（教材風のデモでは見出しに下線が付く）。ページ側で見た目を合わせるつもりのときだけ使う。ブックマークレットと拡張機能では使わない
 
 ### 4.6 利用者が自分で入れる（ブックマークレット・拡張機能）
 
@@ -281,6 +316,22 @@ package.json
 - 要約データはないので、あらすじは要点を省いた文（どこまで・続き・残り）になる。ページの本文をその場で外部の AI に送って要約することはしない（本文を外へ送ることになり、「事前に生成して人が確認する」方針にも合わないため）
 - ページ移動のたびに本文を JavaScript で入れ替えるサイトでは、2ページ目以降の節が合わない（1.2 の対象外のとおり）。iframe ごと読み込み直すサイトは、拡張機能の「自動で使う」なら入れ直せる。ブックマークレットでは、教材を移るたびに押し直す
 - ブックマークレットと拡張機能は、ページを開き直すたびに入れ直す（拡張機能は「自動で使う」にしたサイトを除く）
+
+### 4.7 オン・オフの切り替え（`data-optin`）
+
+全員に既定で出すのではなく、使いたい人だけがオンにする形にするとき使う。ページ側はボタンを1つ置き、そのセレクタを `data-optin` に書くだけでよい。
+
+```html
+<button id="arasuji-toggle" type="button">「前回のあらすじ」を使う</button>
+<script src="/v1/arasuji.js" defer data-optin="#arasuji-toggle"></script>
+```
+
+- ボタンに `aria-pressed` を付けて状態を表す。押すたびにオンとオフを切り替え、オンなら動き出し、オフなら止める（8.3 の `destroy()` と同じ）
+- 選んだ状態は `arasuji-settings:{namespace}` の `enabled` に保存する（6.5 と同じ場所。同じサイトならどのページでも同じ）。保存した状態がオンなら、開いたときから動く。はじめはオフ
+- ボタンの文言はページ側が決める。押したときの「オン」「オフ」はスクリーンリーダーが `aria-pressed` から読む
+- ボタンが見つからなければ `arasuji:unavailable`（`no-optin-button`）を出し、何もしない
+- オンにしても節の見出しが見つからなければ `arasuji:unavailable` を出す。ページ側はこれを受けてボタンを隠せる
+- `destroy()` で止めたときは、ボタンをオフの表示にする。保存した状態は変えない
 
 ## 5. ① コア
 
@@ -508,11 +559,12 @@ localStorage['arasuji-settings:{namespace}'] = {"autoplay": true}
 
 - 字幕：あらすじ欄の中に `aria-hidden="true"` の段落を置き、`arasuji:announce` を受けて「読み上げ：〜」と表示する
 - 光らせる演出：`arasuji:announce` を受けてあらすじ欄を一瞬光らせる。`prefers-reduced-motion` のときは止める
+- どちらも発表のデモ用。`data-caption="off"` で両方とも止める（字幕の段落も置かない）。字幕は `aria-hidden` なので、拡大鏡とスクリーンリーダーを併用する人には見える文と読まれる文が別物になる（12.）。デモ以外のサイトでは `off` を勧める
 
 ### 7.4 CSS
 
 - `<style>` を差し込み、`arasuji-` の要素にだけ当てる
-- 色は `var(--arasuji-accent)`
+- 色は CSS 変数で上書きできる（4.5）
 - スマホの幅で崩れないこと
 
 ## 8. 公開 API とイベント
@@ -545,6 +597,7 @@ localStorage['arasuji-settings:{namespace}'] = {"autoplay": true}
 | API | 内容 |
 | --- | --- |
 | `ready` | 初期化が終わると `getState()` の値で解決する Promise（`arasuji:ready` の取りこぼし対策） |
+| `destroy()` | 止める（8.3） |
 
 ### 8.2 イベント
 
@@ -555,6 +608,25 @@ localStorage['arasuji-settings:{namespace}'] = {"autoplay": true}
 | `arasuji:ready` | `getState()` の値 | 初期化が終わった |
 | `arasuji:change` | `getState()` の値 | 進捗が変わった |
 | `arasuji:announce` | `{ text }` | 読み上げた（字幕の表示に使う） |
+| `arasuji:unavailable` | `{ reason, message, selector }` | 動けなかった。`reason` は `no-container`・`no-headings`・`invalid-selector`・`already-running`・`no-optin-button` |
+| `arasuji:destroy` | `{}` | 止める直前（`window.Arasuji` はまだ使える）。自前 UI はこれを受けて自分の要素を外す |
+
+- `arasuji:unavailable` はコンソールへの警告と一緒に出す。ページ側は、同じセレクタで見出しを探し直さなくても、これで切り替えボタンを隠すなどできる
+- `defer` の `arasuji.js` より前のインラインの script でリスナーを登録すれば、`arasuji:ready`・`arasuji:unavailable` を取りこぼさない
+
+### 8.3 `destroy()`
+
+ページに足したものをすべて外し、読み込む前の状態に戻す。
+
+- `arasuji:destroy` を出してから、次のものを外す
+  - ①②のリスナー（focusin・ショートカット）。`AbortController` でまとめて外す
+  - 読み上げ待ちと自動読み上げのタイマー
+  - ライブ通知領域
+  - `resume()` が付けた `tabindex`（ページがもともと持っていた `tabindex` は残す）
+  - ③の要素・`<style>`・リスナー（③は `arasuji:destroy` を受けて自分で外す。公開 API とイベントだけを使う決まり（3.）のとおり）
+  - `window.Arasuji`
+- 進捗と設定（localStorage）は消さない
+- 止めたあとは、同じページでもう一度動かせる（`data-optin` のボタン、またはもう一度 script を入れる）。リスナーは二重にならない
 
 ## 9. 要約データ（`arasuji-data.js`）
 
@@ -610,6 +682,13 @@ HTML パーサーを使わないため、セレクタは arasuji.js より単純
 | `container` | タグ名、またはクラス名（`.` 始まり） |
 | `heading` | タグ名 |
 | `end` | クラス名（`.` 始まり） |
+| `recursive` | `true` なら `input` の下のディレクトリもたどる（ビルドしたサイトの `posts/foo/index.html` など） |
+
+- `input` と `output` は設定ファイルのある場所からの相対パス。`--config <path>` でほかのサイトの設定ファイルを指定できる（ブログのビルドの中で、ビルドした HTML から arasuji-data.js を作るとき）
+
+```sh
+node path/to/arasuji-js/scripts/generate.mjs --config arasuji.config.json
+```
 
 デモページはこの範囲で切り出せる書き方にしておく。
 
@@ -628,7 +707,7 @@ HTML パーサーを使わないため、セレクタは arasuji.js より単純
 6. `output` に arasuji-data.js の形で書き出す
 7. `--no-ai`（`pnpm generate:dry`）のときは、本文の1文目で仮の要約・要点を作る（API を呼ばない）。これも 10.5 の後処理を通す
 
-ページ ID はファイル名から拡張子を除いたもの、`title` はページの h1 から取る。`index.html` だけは、`input` のディレクトリ名をページ ID にする（arasuji.js の 5.1 と揃える）。
+ページ ID はファイル名から拡張子を除いたもの、`title` はページの h1 から取る。`index.html` は、そのディレクトリ名をページ ID にする（`posts/foo/index.html` は `foo`。`input` のすぐ下なら `input` のディレクトリ名。arasuji.js の 5.1 と揃える）。ID がぶつかったら警告する。
 
 ### 10.3 AI の呼び出し
 
@@ -745,7 +824,7 @@ HTML パーサーを使わないため、セレクタは arasuji.js より単純
 | --- | --- | --- |
 | 記録する位置 | 「最後に読んだ位置」ではなく「一番先まで読んだ位置」 | 復習用に「最後に見ていた節」も別に持つ |
 | データのずれ | 節の番号で引くため、ページを直すとずれる | 見出しの id で引くか、ページの版のハッシュを持つ |
-| 字幕 | `aria-hidden` なので、拡大鏡とスクリーンリーダーの併用者には見える文と読まれる文が別物になる | 字幕をなくし、あらすじの文を更新するだけにする |
+| 字幕 | `aria-hidden` なので、拡大鏡とスクリーンリーダーの併用者には見える文と読まれる文が別物になる。`data-caption="off"` で止められる（7.3） | 既定を `off` にし、あらすじの文を更新するだけにする |
 | 進捗 | 端末ごと | ログインに結び付けてサーバーに持つ（①の保存先を差し替える） |
 | 画像 | alt のない画像は要約の材料にならない | AI による alt 候補の生成 |
 | 既読判定 | ブラウズモードでボタンを通り過ぎただけでは既読にならない環境がある | スクロール位置による補助判定（13.） |
@@ -816,6 +895,9 @@ NVDA＋Chrome／VoiceOver＋Safari：
 | デモ用リンクの URL | 拡張子なしにする（`serve` のリダイレクトでクエリが消えるため） | 5.8 |
 | 末尾が `/` の URL のページ ID | `index` ではなく一つ上のディレクトリ名にする | 5.1・10.2 |
 | 未着手の「続きから読む」の移り先 | 最初の見出しより前の導入部分。h1 より前（パンくずなど）は含めない | 6.3 |
+| 色の上書き | 色ごとに CSS 変数を用意し、既定値は `light-dark()`。`@layer` は `data-css-layer="on"` のときだけ | 4.5 |
+| 止める・切り替え | `destroy()` と `data-optin`。状態は `arasuji-settings` の `enabled` に保存 | 4.7・8.3 |
+| 版 | URL に入れる（`/v1/`）。版なしの URL は v1 に送る | 2.4 |
 | 利用者が自分で入れる方法 | ブックマークレットと Chrome 拡張機能の両方を作る。設定は `window.ARASUJI_CONFIG` でも受け取り、二重に動かないようにする | 4.6 |
 | 本文が iframe の中にあるサイト | iframe をたどって本文のある文書を選び、その中に入れる。`pageId` で URL からページ ID を作れる | 4.6 |
 | 「次の節へ」を `<section>` の末尾に入れる条件 | 次の見出しがその `<section>` の外にあるとき（最後の節は、その中に終わりの目印がないとき） | 7.2 |

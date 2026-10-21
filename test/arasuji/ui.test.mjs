@@ -119,6 +119,31 @@ describe('あらすじ欄', () => {
     assert.equal(p.$$('#arasuji-style').length, 1);
     assert.ok(p.$('#arasuji-style').textContent.includes('var(--arasuji-accent, #ff0000)'));
   });
+
+  test('色はすべて CSS 変数で上書きでき、既定値は light-dark() でダークモードにも合わせる', async () => {
+    const css = (await lesson()).$('#arasuji-style').textContent;
+    for (const name of ['accent', 'bg', 'text', 'muted', 'border', 'caption-bg', 'focus', 'on-accent']) {
+      assert.ok(css.includes(`var(--arasuji-${name},`), name);
+    }
+    assert.ok(css.includes('var(--arasuji-bg, light-dark(#fff, '));
+    // light-dark() に対応していないブラウザ向けに、明るい色だけの既定値も置く
+    assert.ok(css.includes('var(--arasuji-bg, #fff)'));
+  });
+
+  test('data-css-layer="on" なら @layer arasuji に入れる', async () => {
+    assert.ok(!(await lesson()).$('#arasuji-style').textContent.includes('@layer'));
+    const css = (await lesson({ attrs: { 'css-layer': 'on' } })).$('#arasuji-style').textContent;
+    assert.ok(css.startsWith('@layer arasuji {'));
+  });
+
+  test('data-caption="off" なら字幕を置かず、光らせもしない', async () => {
+    const p = await lesson({ attrs: { caption: 'off' } });
+    assert.equal(p.$('.arasuji-caption'), null);
+    const done = nextAnnounce(p.document);
+    p.api.announce('テストの文');
+    await done;
+    assert.equal(p.$('#arasuji-recap').classList.contains('arasuji-flash'), false);
+  });
 });
 
 describe('「次の節へ」ボタン', () => {

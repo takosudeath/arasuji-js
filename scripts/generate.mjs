@@ -1,6 +1,8 @@
 // ページ → arasuji-data.js（AI のプロバイダーは arasuji.config.json の ai で選ぶ）
 //   pnpm generate       AI で要約・要点を作る
 //   pnpm generate:dry   API を呼ばず、本文の1文目で仮の要約・要点を作る
+//   node scripts/generate.mjs --config ../blog/arasuji.config.json
+//                       ほかのサイトの設定で動かす（input と output はその設定ファイルからの相対パス）
 // HTML パーサーを使わないので、セレクタは単純な書き方だけを扱う（docs/spec.md 10.1）
 import fs from 'node:fs/promises';
 import path from 'node:path';
@@ -10,40 +12,73 @@ const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const DRY = process.argv.includes('--no-ai');
 const POINT_MAX = 35;
 
+function configPath() {
+  const i = process.argv.indexOf('--config');
+  return i >= 0 && process.argv[i + 1] ? path.resolve(process.argv[i + 1]) : path.join(ROOT, 'arasuji.config.json');
+}
+
 const PROMPTS = {
   summary: '文書の1節を読み、「この節で学ぶこと」を日本語1文で書いてください。用語は本文の表記に合わせ、本文にない情報は足さないでください。出力は1文のみ。',
   point: '読者が文書を再開するときに思い出すべきことを、与えられた節要約だけを材料にして、日本語1文・35字以内にまとめてください。用語は本文の表記に合わせ、本文にない情報は足さないでください。出力は要約文のみ。',
 };
 
 async function main() {
-  const config = JSON.parse(await fs.readFile(path.join(ROOT, 'arasuji.config.json'), 'utf8'));
+  const file = configPath();
+  const base = path.dirname(file);
+  const config = JSON.parse(await fs.readFile(file, 'utf8'));
   const ai = DRY ? null : createAI(config);
 
   for (const site of config.sites) {
-    const inputDir = path.join(ROOT, site.input);
-    const files = (await fs.readdir(inputDir)).filter(f => f.endsWith('.html')).sort();
+    const inputDir = path.resolve(base, site.input);
+    const files = await listPages(inputDir, site.recursive);
     const data = {};
+    const from = {}; // ページ ID → ファイル（ID がぶつかったら知らせる）
 
     for (const file of files) {
-      // index.html は URL が /docs/ のようにディレクトリで終わるので、ディレクトリ名を ID にする（arasuji.js と揃える）
-      const name = file.replace(/\.html$/, '');
-      const pageId = name === 'index' ? path.basename(inputDir) : name;
+      const pageId = pageIdOf(file, inputDir);
       const html = await fs.readFile(path.join(inputDir, file), 'utf8');
       const page = parsePage(html, site);
       if (!page) {
         console.warn(`[skip] ${site.input}/${file}: コンテナ「${site.container}」か見出し「${site.heading}」が見つかりません`);
         continue;
       }
+      if (from[pageId]) {
+        console.warn(`[warn] ${site.input}/${file}: ページ ID「${pageId}」が ${from[pageId]} とぶつかります。後のほうで上書きします`);
+      }
+      from[pageId] = file;
       console.log(`[page] ${pageId}: 「${page.title}」${page.sections.length}節`);
       data[pageId] = await summarizePage(pageId, page, ai);
     }
 
-    const outPath = path.join(ROOT, site.output);
+    const outPath = path.resolve(base, site.output);
+    await fs.mkdir(path.dirname(outPath), { recursive: true });
     await fs.writeFile(outPath, render(data), 'utf8');
     console.log(`[write] ${site.output}（${Object.keys(data).length}ページ）`);
   }
 
   console.log('\n生成した文は、必ず目で確認してから使ってください。');
+}
+
+// ---------------------------------------------------------------------------
+// ページの一覧
+
+// input の中の *.html を、input からの相対パス（区切りは /）で返す。
+// recursive なら下のディレクトリもたどる（ビルドしたサイトの posts/foo/index.html など）
+async function listPages(inputDir, recursive) {
+  const entries = await fs.readdir(inputDir, { recursive: !!recursive, withFileTypes: true });
+  return entries
+    .filter(e => e.isFile() && e.name.endsWith('.html'))
+    .map(e => path.relative(inputDir, path.join(e.parentPath ?? e.path, e.name)).split(path.sep).join('/'))
+    .sort();
+}
+
+// arasuji.js がその URL から作るページ ID と揃える（docs/spec.md 5.1）。
+// foo.html → foo、foo/index.html → foo。input のすぐ下の index.html は input のディレクトリ名
+function pageIdOf(file, inputDir) {
+  const parts = file.split('/');
+  const name = parts.pop().replace(/\.html$/, '');
+  if (name !== 'index') return name;
+  return parts.pop() || path.basename(inputDir);
 }
 
 // ---------------------------------------------------------------------------
@@ -301,7 +336,7 @@ function render(data) {
 }
 
 // テストから import したときは動かさない
-export { parsePage, extractContainer, cutAtEndMarker, toText, decodeEntities, summarizePage, firstSentence, clean, PROVIDERS, render };
+export { listPages, pageIdOf, parsePage,extractContainer, cutAtEndMarker, toText, decodeEntities, summarizePage, firstSentence, clean, PROVIDERS, render };
 
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
   main().catch(e => {

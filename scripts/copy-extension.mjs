@@ -5,10 +5,11 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
-const FILES = ['arasuji.js', 'sites.js'];
+// public/ の中の場所 → extension/ の中の名前
+const FILES = { 'v1/arasuji.js': 'arasuji.js', 'sites.js': 'sites.js' };
 
-for (const file of FILES) {
-  await fs.copyFile(path.join(ROOT, 'public', file), path.join(ROOT, 'extension', file));
-  console.log(`[copy] public/${file} → extension/${file}`);
+for (const [from, to] of Object.entries(FILES)) {
+  await fs.copyFile(path.join(ROOT, 'public', from), path.join(ROOT, 'extension', to));
+  console.log(`[copy] public/${from} → extension/${to}`);
 }
 console.log('\nchrome://extensions で「パッケージ化されていない拡張機能を読み込む」から extension/ を選んでください。');

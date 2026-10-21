@@ -1,9 +1,9 @@
-// jsdom のページに public/arasuji.js を読み込む。
+// jsdom のページに public/v1/arasuji.js を読み込む。
 // arasuji.js は document.currentScript の data 属性で設定を受け取るので、実際のページと同じく script 要素として実行する
 import fs from 'node:fs';
 import { JSDOM, VirtualConsole } from 'jsdom';
 
-const CODE = fs.readFileSync(new URL('../../public/arasuji.js', import.meta.url), 'utf8');
+const CODE = fs.readFileSync(new URL('../../public/v1/arasuji.js', import.meta.url), 'utf8');
 
 // 教材風（節を <section> で囲まない平らな構造）。3節
 export const LESSON = `
@@ -70,7 +70,7 @@ export async function load({
       virtualConsole,
       beforeParse(window) {
         for (const [k, v] of Object.entries(storage)) window.localStorage.setItem(k, JSON.stringify(v));
-        for (const name of ['arasuji:ready', 'arasuji:change', 'arasuji:announce']) {
+        for (const name of ['arasuji:ready', 'arasuji:change', 'arasuji:announce', 'arasuji:unavailable', 'arasuji:destroy']) {
           window.document.addEventListener(name, e => events.push({ name, detail: e.detail }));
         }
         if (setup) setup(window);
